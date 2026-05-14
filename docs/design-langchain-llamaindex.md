@@ -257,7 +257,7 @@ from alephantai.analytics import AlephantAnalyticsClient
 
 analytics = AlephantAnalyticsClient(
     api_key="vk-...",
-    base_url="https://alephant.io/api/v1",
+    base_url="https://analytics.alephant.io/api/v1",
 )
 
 summary = analytics.usage_summary(period="billing_cycle")
@@ -278,7 +278,7 @@ recent = analytics.recent_requests(limit=20)
 - `GET /api/v1/cockpit/recent-requests`，如果后端仍标记 degraded，SDK 文档应如实说明。
 - `GET /api/v1/cockpit/health`，用于无认证健康检查，不代表某个 Virtual Key 的统计数据。
 
-v1 不建议默认暴露完整工作区管理员 analytics，因为那通常需要 SaaS 用户身份、workspace 权限、`X-Workspace-Id`、以及更复杂的 RBAC。可以后续作为 `alephantai-saas-api` 或 admin extra 的能力。
+v1 不建议默认暴露完整工作区管理员 analytics，因为那通常需要 SaaS 用户身份、workspace 权限、`X-Workspace-Id`、以及更复杂的 RBAC。Analytics API 生产 host 为 `https://analytics.alephant.io`；SaaS 后端生产 host 为 `https://alephant.io/`，可以后续作为 `alephantai-saas-api` 或 admin extra 的能力。
 
 包命名上，`alephantai` 定位为运行时 Gateway SDK；`alephantai-saas-api` / Fern 生成客户端定位为 SaaS 管理 API 或后台管理客户端。SDK 发布后，需要同步更新前端和公开 quickstart，避免两个包在用户路径里混用。
 
@@ -411,7 +411,7 @@ Instrumentation 暂不进入 v1。第一版只通过 LLM / embedding helper 把 
 当前后端/Collector 相关事实：
 
 - Gateway 请求需要携带 `Alephant-Session-Id` 才能归到对应 session。
-- Gateway 必须把 `alephant-session-id` 映射到 Collector payload 的 `log.request.sessionId`，不能只写入 properties；SDK v1 依赖这个后端契约完成 session 归因。
+- Gateway 已支持把 `alephant-session-id` 映射到 Collector payload 的 `log.request.sessionId`，不能只写入 properties；SDK v1 依赖这个后端契约完成 session 归因。
 - Collector 已有 `request_response_rmt.session_id` 列。
 - Sessions analytics 基于 `request_response_rmt.session_id` 聚合。
 - ClickHouse 已存在 step 相关列，但 SDK v1 不发送 step header。

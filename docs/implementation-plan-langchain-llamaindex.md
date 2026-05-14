@@ -8,7 +8,9 @@
 
 **技术栈：** Python 3.10+、`httpx`、`openai`、可选 `langchain-openai`、可选 `llama-index-llms-openai`、可选 `llama-index-embeddings-openai`、`pytest`、`ruff`、`build`。
 
-**后端前置契约：** Gateway 必须把入站 `alephant-session-id` 映射到 Collector payload 的 `log.request.sessionId`，而不只是写入 log properties；否则 SDK 发出的 session header 无法进入 RMT `session_id` 归因链路。
+**后端契约：** Gateway 已支持把入站 `alephant-session-id` 映射到 Collector payload 的 `log.request.sessionId`，而不只是写入 log properties；SDK 发出的 session header 可以进入 RMT `session_id` 归因链路。
+
+**生产 host：** Gateway OpenAI-compatible host 为 `https://ai.alephant.io/v1`；Analytics API host 为 `https://analytics.alephant.io`；SaaS 后端 host 为 `https://alephant.io/`。
 
 ---
 
@@ -742,7 +744,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-DEFAULT_API_BASE_URL = "https://alephant.io/api/v1"
+DEFAULT_API_BASE_URL = "https://analytics.alephant.io/api/v1"
 
 
 class AlephantAnalyticsClient:
@@ -1377,7 +1379,7 @@ Create `docs/analytics.md`:
 ```markdown
 # Analytics
 
-`AlephantAnalyticsClient` 使用 `Authorization: Bearer vk-...` 查询 Virtual Key 认证的用量/费用（Cockpit API）数据。实时 usage、daily costs、cost by model、budget spent 依赖该 VK 绑定到 agent 或 member；建议先调用 `scope()` 判断当前 key 的 scope/entity。v1 只保证 session 级请求/费用归因；完整 journey steps、policy events、grade 需要后续 step/span 契约。
+`AlephantAnalyticsClient` 默认使用 `https://analytics.alephant.io/api/v1`，并通过 `Authorization: Bearer vk-...` 查询 Virtual Key 认证的用量/费用（Cockpit API）数据。实时 usage、daily costs、cost by model、budget spent 依赖该 VK 绑定到 agent 或 member；建议先调用 `scope()` 判断当前 key 的 scope/entity。SaaS 后端 host 是 `https://alephant.io/`，不要和 analytics host 混用。v1 只保证 session 级请求/费用归因；完整 journey steps、policy events、grade 需要后续 step/span 契约。
 
 支持：
 
@@ -1551,7 +1553,7 @@ python -m venv /tmp/alephantai-wheel-smoke
 
 Expected: prints `0.1.0`.
 
-- [ ] **Step 6: Smoke test real optional extras**
+- [ ] **Step 6: Smoke test real optional dependencies**
 
 Run:
 
@@ -1580,7 +1582,7 @@ print(type(create_openai_embedding(api_key="vk-test", model="text-embedding-3-sm
 PY
 ```
 
-Expected: both optional extras install cleanly, `pip check` passes, and constructors work without making network calls.
+Expected: both optional extras install cleanly from the built wheel, `pip check` passes, and real LangChain/LlamaIndex constructors work without making network calls.
 
 - [ ] **Step 7: Inspect git status**
 
@@ -1609,7 +1611,7 @@ If no changes were needed, do not create an empty commit.
 - Modify only release docs/changelog/frontend quickstarts as needed.
 
 - [ ] Confirm `alephantai` PyPI ownership/name reservation and trusted publishing configuration.
-- [ ] Confirm canonical production SaaS API origin for analytics; keep `base_url` override prominent until confirmed.
+- [ ] Verify production hosts in docs: Gateway `https://ai.alephant.io/v1`, Analytics `https://analytics.alephant.io`, SaaS `https://alephant.io/`.
 - [ ] Publish to TestPyPI and install from TestPyPI in a clean venv.
 - [ ] Publish to PyPI.
 - [ ] Verify `pip install alephantai`, `pip install "alephantai[langchain]"`, and `pip install "alephantai[llamaindex]"`.
