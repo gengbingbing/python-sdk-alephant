@@ -4,7 +4,6 @@ build-backend = "hatchling.build"
 
 [project]
 name = "alephantai"
-version = "0.1.0"
 description = "Python SDK for Alephant Gateway sessions, analytics, and framework integrations."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,6 +11,7 @@ license = { text = "MIT" }
 license-files = ["LICENSE"]
 authors = [{ name = "Alephant AI" }]
 keywords = ["alephant", "llm", "gateway", "langchain", "llamaindex", "cost"]
+dynamic = ["version"]
 dependencies = [
   "httpx>=0.24,<1",
   "openai>=1.0,<3",
@@ -31,6 +31,9 @@ dev = ["pytest>=8", "ruff>=0.6", "build>=1.2", "twine>=5"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/alephantai"]
+
+[tool.hatch.version]
+path = "src/alephantai/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
