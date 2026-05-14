@@ -36,6 +36,8 @@ future step/span contract.
 
 ## Analytics
 
+The Cockpit analytics client defaults to `https://alephant.io/api/v1`.
+
 ```python
 from alephantai import AlephantAnalyticsClient
 

@@ -3,6 +3,33 @@ import httpx
 from alephantai.analytics import AlephantAnalyticsClient
 
 
+def test_default_base_url_uses_saas_cockpit_api_host():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"status": "healthy"})
+
+    client = AlephantAnalyticsClient(
+        "vk-test",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.health() == {"status": "healthy"}
+    assert seen["url"] == "https://alephant.io/api/v1/cockpit/health"
+
+
+def test_analytics_api_key_rejects_control_characters():
+    with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200))) as http_client:
+        try:
+            AlephantAnalyticsClient("vk-test\x00", http_client=http_client).usage_summary()
+        except ValueError as exc:
+            assert "api_key" in str(exc)
+            assert "control characters" in str(exc)
+        else:
+            raise AssertionError("expected control character validation")
+
+
 def test_constructor_accepts_positional_api_key():
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"data": {"total_requests": 1}})

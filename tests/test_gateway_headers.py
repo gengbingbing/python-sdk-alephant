@@ -39,6 +39,17 @@ def test_invalid_cache_bucket_size_is_rejected():
         CacheHeaders(enabled=True, bucket_max_size=21)
 
 
+def test_gateway_headers_reject_control_characters():
+    with pytest.raises(ValueError, match="control characters"):
+        GatewayHeaders(forced_routing="openai\x00")
+
+    with pytest.raises(ValueError, match="control characters"):
+        GatewayHeaders(prompt_id="prompt\x1f")
+
+    with pytest.raises(ValueError, match="control characters"):
+        CacheHeaders(cache_control="max-age=60\x7f")
+
+
 def test_cache_boolean_fields_reject_non_bool_values():
     for field in ("enabled", "read", "save"):
         with pytest.raises(ValueError, match=field):

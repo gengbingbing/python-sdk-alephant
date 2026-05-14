@@ -38,6 +38,20 @@ def test_create_openai_client_uses_default_gateway_base_url():
     assert str(client.base_url) == "https://ai.alephant.io/v1/"
 
 
+def test_create_openai_client_merges_user_default_headers():
+    ctx = AlephantGatewayContext(session_id="sess-test")
+
+    client = create_openai_client(
+        "vk-test",
+        context=ctx,
+        default_headers={"x-user-header": "1", "alephant-session-id": "wrong"},
+    )
+
+    assert client.default_headers["x-user-header"] == "1"
+    assert "alephant-session-id" not in client.default_headers
+    assert client.default_headers["Alephant-Session-Id"] == "sess-test"
+
+
 def test_merge_default_headers_preserves_user_headers():
     headers = merge_default_headers(
         {"X-User-Header": "user-value"},

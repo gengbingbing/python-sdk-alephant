@@ -28,6 +28,8 @@ def create_openai_client(
     api_key: str,
     context: Optional[AlephantGatewayContext] = None,
     base_url: str = DEFAULT_GATEWAY_BASE_URL,
+    default_headers: Optional[Mapping[str, str]] = None,
+    **kwargs: object,
 ) -> OpenAI:
     """Create an OpenAI-compatible client configured for Alephant Gateway."""
     from openai import OpenAI
@@ -36,5 +38,6 @@ def create_openai_client(
     return OpenAI(
         api_key=api_key,
         base_url=base_url,
-        default_headers=ctx.headers(),
+        default_headers=merge_default_headers(default_headers, ctx.headers()),
+        **kwargs,
     )

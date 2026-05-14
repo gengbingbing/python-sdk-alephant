@@ -257,7 +257,7 @@ from alephantai.analytics import AlephantAnalyticsClient
 
 analytics = AlephantAnalyticsClient(
     api_key="vk-...",
-    base_url="https://analytics.alephant.io/api/v1",
+    base_url="https://alephant.io/api/v1",
 )
 
 summary = analytics.usage_summary(period="billing_cycle")
@@ -278,7 +278,7 @@ recent = analytics.recent_requests(limit=20)
 - `GET /api/v1/cockpit/recent-requests`，如果后端仍标记 degraded，SDK 文档应如实说明。
 - `GET /api/v1/cockpit/health`，用于无认证健康检查，不代表某个 Virtual Key 的统计数据。
 
-v1 不建议默认暴露完整工作区管理员 analytics，因为那通常需要 SaaS 用户身份、workspace 权限、`X-Workspace-Id`、以及更复杂的 RBAC。Analytics API 生产 host 为 `https://analytics.alephant.io`；SaaS 后端生产 host 为 `https://alephant.io/`，可以后续作为 `alephantai-saas-api` 或 admin extra 的能力。
+v1 不建议默认暴露完整工作区管理员 analytics，因为那通常需要 SaaS 用户身份、workspace 权限、`X-Workspace-Id`、以及更复杂的 RBAC。Cockpit API 由 SaaS 后端生产 host `https://alephant.io/` 暴露；低层 Collector Analytics API 生产 host 为 `https://analytics.alephant.io`，可以后续作为专用 analytics SDK 或 admin extra 的能力。
 
 包命名上，`alephantai` 定位为运行时 Gateway SDK；`alephantai-saas-api` / Fern 生成客户端定位为 SaaS 管理 API 或后台管理客户端。SDK 发布后，需要同步更新前端和公开 quickstart，避免两个包在用户路径里混用。
 
@@ -302,7 +302,7 @@ v1 暂不支持：
 
 这样 SDK 既能帮助用户“发起网关请求”，也能帮助用户“看到这个 key 产生了什么成本和使用情况”。
 
-`usage_summary()`、`budget_status()`、`cost_by_model()`、`daily_costs()` 和 `scope()` 返回后端 `data` payload，隐藏 `{"data": ...}` envelope。`recent_requests()` 和 `health()` 返回后端顶层 JSON，因为它们当前不是同一 envelope 形状。SDK 不转换 UI 展示单位，调用方需要按响应字段判断 `degraded`、`data_source`，并按后端 schema 处理 `cost_cents`、`spent_cents` 等金额单位。
+`usage_summary()`、`budget_status()`、`cost_by_model()` 和 `daily_costs()` 返回后端 `data` payload，隐藏 `{"data": ...}` envelope。`scope()` 有 `data` 时返回 `data`，没有 `data` 时返回后端顶层 JSON。`recent_requests()` 和 `health()` 返回后端顶层 JSON，因为它们当前不是同一 envelope 形状。SDK 不转换 UI 展示单位，调用方需要按响应字段判断 `degraded`、`data_source`，并按后端 schema 处理 `cost_cents`、`spent_cents` 等金额单位。
 
 ## LangChain 集成
 
@@ -384,7 +384,7 @@ llm = create_openai_llm(
 )
 ```
 
-后续也可以提供 embedding helper：
+v1 同时提供 embedding helper：
 
 ```python
 from alephantai.llamaindex import create_openai_embedding

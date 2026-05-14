@@ -11,6 +11,8 @@ from .headers import GatewayHeaders
 _ID_ALPHABET = string.ascii_letters + string.digits + "_-"
 _PROPERTY_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _SENSITIVE_PROPERTY_KEY_PARTS = ("token", "secret", "password", "apikey")
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+_PROPERTY_VALUE_TYPES = (str, int, float, bool)
 
 
 def _new_session_id() -> str:
@@ -22,8 +24,8 @@ def _validate_header_value(name: str, value: str, max_length: int) -> str:
         raise ValueError(f"{name} must be a non-empty string")
     if len(value) > max_length:
         raise ValueError(f"{name} must be at most {max_length} characters")
-    if "\r" in value or "\n" in value:
-        raise ValueError(f"{name} must not contain newlines")
+    if _CONTROL_CHAR_RE.search(value):
+        raise ValueError(f"{name} must not contain control characters")
     return value
 
 
@@ -50,6 +52,8 @@ def _normalize_properties(properties: Optional[Mapping[str, object]]) -> Dict[st
     result: Dict[str, str] = {}
     for key, raw_value in (properties or {}).items():
         _property_header_name(key)
+        if not isinstance(raw_value, _PROPERTY_VALUE_TYPES):
+            raise ValueError(f"property {key} must be a string, number, or bool")
         result[key] = _validate_header_value(f"property {key}", str(raw_value), 512)
     return result
 

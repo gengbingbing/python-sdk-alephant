@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Dict, Optional
+
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def _bool_header(value: bool) -> str:
@@ -15,8 +18,8 @@ def _validate_text(name: str, value: Optional[str], max_length: int) -> Optional
         raise ValueError(f"{name} must be a non-empty string")
     if len(value) > max_length:
         raise ValueError(f"{name} must be at most {max_length} characters")
-    if "\r" in value or "\n" in value:
-        raise ValueError(f"{name} must not contain newlines")
+    if _CONTROL_CHAR_RE.search(value):
+        raise ValueError(f"{name} must not contain control characters")
     return value
 
 

@@ -1,10 +1,10 @@
 # Gateway Headers
 
-SDK 自动生成：
+The SDK generates this header automatically:
 
 - `Alephant-Session-Id`
 
-用户显式配置才生成：
+The SDK sends these headers only when you configure them explicitly:
 
 - `Alephant-Session-Name`
 - `Alephant-Session-Path`
@@ -19,11 +19,13 @@ SDK 自动生成：
 - `alephant-prompt-id`
 - `alephant-omit-request`
 - `alephant-omit-response`
-- `x-alephant-webhook-enabled`，仅显式启用时发送，不发送 `false`
+- `x-alephant-webhook-enabled`; sent only when explicitly enabled, never as `false`
 
-SDK v1 不暴露 PostHog/Lytix 等敏感观测配置 header；这些应在服务端/workspace 配置中管理。
+SDK v1 does not expose sensitive observability configuration headers such as
+PostHog or Lytix keys. Manage those values in server-side or workspace
+configuration.
 
-v1 不生成：
+SDK v1 does not generate:
 
 - `Collector-Step-Id`
 - `Collector-Parent-Step-Id`

@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Optional
 
 import httpx
 
-DEFAULT_API_BASE_URL = "https://analytics.alephant.io/api/v1"
+DEFAULT_API_BASE_URL = "https://alephant.io/api/v1"
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _validate_api_key(api_key: str) -> str:
+    if not isinstance(api_key, str) or api_key.strip() == "":
+        raise ValueError("api_key must be a non-empty string")
+    if _CONTROL_CHAR_RE.search(api_key):
+        raise ValueError("api_key must not contain control characters")
+    return api_key
 
 
 class AlephantAnalyticsClient:
@@ -15,7 +25,7 @@ class AlephantAnalyticsClient:
         http_client: Optional[httpx.Client] = None,
         timeout: float = 30.0,
     ) -> None:
-        self.api_key = api_key
+        self.api_key = _validate_api_key(api_key)
         self.base_url = base_url.rstrip("/")
         self._owns_client = http_client is None
         self._client = http_client or httpx.Client(timeout=timeout)

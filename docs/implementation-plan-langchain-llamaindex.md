@@ -10,7 +10,7 @@
 
 **后端契约：** Gateway 已支持把入站 `alephant-session-id` 映射到 Collector payload 的 `log.request.sessionId`，而不只是写入 log properties；SDK 发出的 session header 可以进入 RMT `session_id` 归因链路。
 
-**生产 host：** Gateway OpenAI-compatible host 为 `https://ai.alephant.io/v1`；Analytics API host 为 `https://analytics.alephant.io`；SaaS 后端 host 为 `https://alephant.io/`。
+**生产 host：** Gateway OpenAI-compatible host 为 `https://ai.alephant.io/v1`；Cockpit API host 为 `https://alephant.io/api/v1`；低层 Analytics API host 为 `https://analytics.alephant.io`。
 
 ---
 
@@ -744,7 +744,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-DEFAULT_API_BASE_URL = "https://analytics.alephant.io/api/v1"
+DEFAULT_API_BASE_URL = "https://alephant.io/api/v1"
 
 
 class AlephantAnalyticsClient:
@@ -1379,7 +1379,7 @@ Create `docs/analytics.md`:
 ```markdown
 # Analytics
 
-`AlephantAnalyticsClient` 默认使用 `https://analytics.alephant.io/api/v1`，并通过 `Authorization: Bearer vk-...` 查询 Virtual Key 认证的用量/费用（Cockpit API）数据。实时 usage、daily costs、cost by model、budget spent 依赖该 VK 绑定到 agent 或 member；建议先调用 `scope()` 判断当前 key 的 scope/entity。SaaS 后端 host 是 `https://alephant.io/`，不要和 analytics host 混用。v1 只保证 session 级请求/费用归因；完整 journey steps、policy events、grade 需要后续 step/span 契约。
+`AlephantAnalyticsClient` 默认使用 `https://alephant.io/api/v1`，并通过 `Authorization: Bearer vk-...` 查询 Virtual Key 认证的用量/费用（Cockpit API）数据。Cockpit API 由 SaaS 后端暴露；低层 Collector Analytics API 的 host 是 `https://analytics.alephant.io`，不要和 Cockpit API 混用。实时 usage、daily costs、cost by model、budget spent 依赖该 VK 绑定到 agent 或 member；建议先调用 `scope()` 判断当前 key 的 scope/entity。v1 只保证 session 级请求/费用归因；完整 journey steps、policy events、grade 需要后续 step/span 契约。
 
 支持：
 
@@ -1391,7 +1391,7 @@ Create `docs/analytics.md`:
 - `recent_requests(limit=20, offset=0)`
 - `health()`
 
-`usage_summary()`、`budget_status()`、`cost_by_model()`、`daily_costs()` 和 `scope()` 返回后端 `data` payload；`recent_requests()` 和 `health()` 返回后端顶层 JSON。调用方需要检查 `degraded` / `data_source`，并按后端字段单位处理 `cost_cents`、`spent_cents` 等金额字段。`recent_requests()` 当前可能返回 `degraded=true` 的空列表。v1 不提供管理员级 workspace analytics。
+`usage_summary()`、`budget_status()`、`cost_by_model()` 和 `daily_costs()` 返回后端 `data` payload；`scope()` 有 `data` 时返回 `data`，没有 `data` 时返回后端顶层 JSON；`recent_requests()` 和 `health()` 返回后端顶层 JSON。调用方需要检查 `degraded` / `data_source`，并按后端字段单位处理 `cost_cents`、`spent_cents` 等金额字段。`recent_requests()` 当前可能返回 `degraded=true` 的空列表。v1 不提供管理员级 workspace analytics。
 ```
 
 - [ ] **Step 4: Write LangChain docs**
@@ -1481,11 +1481,28 @@ Create `examples/llamaindex_rag.py`:
 import os
 
 from alephantai import AlephantGatewayContext
-from alephantai.llamaindex import create_openai_llm
+from alephantai.llamaindex import create_openai_embedding, create_openai_llm
+from llama_index.core import Document, Settings, VectorStoreIndex
 
 ctx = AlephantGatewayContext(session_name="llamaindex-example")
 llm = create_openai_llm(api_key=os.environ["ALEPHANT_VK"], model="gpt-4o-mini", context=ctx)
-print(llm.complete("Hello from LlamaIndex through Alephant Gateway"))
+embed_model = create_openai_embedding(
+    api_key=os.environ["ALEPHANT_VK"],
+    model="text-embedding-3-small",
+    context=ctx,
+)
+
+Settings.llm = llm
+Settings.embed_model = embed_model
+
+documents = [
+    Document(text="Alephant Gateway routes OpenAI-compatible LLM calls and tracks session cost."),
+    Document(text="Alephant Python SDK injects Alephant-Session-Id for session-level attribution."),
+]
+index = VectorStoreIndex.from_documents(documents)
+query_engine = index.as_query_engine()
+
+print(query_engine.query("How does Alephant track this session?"))
 ```
 
 - [ ] **Step 7: Commit**
@@ -1611,7 +1628,7 @@ If no changes were needed, do not create an empty commit.
 - Modify only release docs/changelog/frontend quickstarts as needed.
 
 - [ ] Confirm `alephantai` PyPI ownership/name reservation and trusted publishing configuration.
-- [ ] Verify production hosts in docs: Gateway `https://ai.alephant.io/v1`, Analytics `https://analytics.alephant.io`, SaaS `https://alephant.io/`.
+- [ ] Verify production hosts in docs: Gateway `https://ai.alephant.io/v1`, Cockpit `https://alephant.io/api/v1`, Analytics `https://analytics.alephant.io`.
 - [ ] Publish to TestPyPI and install from TestPyPI in a clean venv.
 - [ ] Publish to PyPI.
 - [ ] Verify `pip install alephantai`, `pip install "alephantai[langchain]"`, and `pip install "alephantai[llamaindex]"`.

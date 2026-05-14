@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dev dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Run tests
+        run: pytest -v
+      - name: Run ruff
+        run: ruff check .
+
+  optional-extras:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        extra: ["langchain", "llamaindex"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install optional extra
+        run: python -m pip install -e ".[${{ matrix.extra }}]"
+      - name: Check dependencies
+        run: python -m pip check
+      - name: Smoke LangChain constructors
+        if: matrix.extra == 'langchain'
+        run: |
+          python - <<'PY'
+          from alephantai import AlephantGatewayContext
+          from alephantai.langchain import create_chat_openai
+
+          llm = create_chat_openai(
+              api_key="vk-test",
+              model="gpt-4o-mini",
+              context=AlephantGatewayContext(session_id="sess-ci"),
+          )
+          assert type(llm).__name__ == "ChatOpenAI"
+          PY
+      - name: Smoke LlamaIndex constructors
+        if: matrix.extra == 'llamaindex'
+        run: |
+          python - <<'PY'
+          from alephantai import AlephantGatewayContext
+          from alephantai.llamaindex import create_openai_embedding, create_openai_llm
+
+          ctx = AlephantGatewayContext(session_id="sess-ci")
+          llm = create_openai_llm(api_key="vk-test", model="gpt-4o-mini", context=ctx)
+          embedding = create_openai_embedding(
+              api_key="vk-test",
+              model="text-embedding-3-small",
+              context=ctx,
+          )
+          assert type(llm).__name__ == "OpenAI"
+          assert type(embedding).__name__ == "OpenAIEmbedding"
+          PY

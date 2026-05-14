@@ -39,6 +39,20 @@ def test_context_rejects_empty_session_id():
         AlephantGatewayContext(session_id="")
 
 
+def test_context_rejects_control_characters_in_header_values():
+    with pytest.raises(ValueError, match="control characters"):
+        AlephantGatewayContext(session_id="sess_\x00bad")
+
+    with pytest.raises(ValueError, match="control characters"):
+        AlephantGatewayContext(session_name="support\x1fbad")
+
+    with pytest.raises(ValueError, match="control characters"):
+        AlephantGatewayContext(session_path="prod/\x7fbad")
+
+    with pytest.raises(ValueError, match="control characters"):
+        AlephantGatewayContext(properties={"app": "support\x00agent"})
+
+
 def test_context_rejects_invalid_headers_during_construction():
     with pytest.raises(ValueError, match="headers"):
         AlephantGatewayContext(headers={})
@@ -48,6 +62,12 @@ def test_context_rejects_non_mapping_properties_during_construction():
     for properties in ([], "", 0, [("app", "x")]):
         with pytest.raises(ValueError, match="properties"):
             AlephantGatewayContext(properties=properties)
+
+
+def test_context_rejects_non_scalar_property_values():
+    for value in ({"api_key": "sk-test"}, ["support"], ("support",), object(), None):
+        with pytest.raises(ValueError, match="property app"):
+            AlephantGatewayContext(properties={"app": value})
 
 
 def test_context_rejects_invalid_properties_during_construction():

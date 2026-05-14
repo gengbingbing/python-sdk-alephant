@@ -1,8 +1,18 @@
 # Analytics
 
-`AlephantAnalyticsClient` 默认使用 `https://analytics.alephant.io/api/v1`，并通过 `Authorization: Bearer vk-...` 查询 Virtual Key 认证的用量/费用（Cockpit API）数据。实时 usage、daily costs、cost by model、budget spent 依赖该 VK 绑定到 agent 或 member；建议先调用 `scope()` 判断当前 key 的 scope/entity。SaaS 后端 host 是 `https://alephant.io/`，不要和 analytics host 混用。v1 只保证 session 级请求/费用归因；完整 journey steps、policy events、grade 需要后续 step/span 契约。
+`AlephantAnalyticsClient` defaults to `https://alephant.io/api/v1` and uses
+`Authorization: Bearer vk-...` to query Virtual Key-authenticated usage and cost
+data from the Cockpit API. Cockpit API routes are exposed by the SaaS backend.
+The lower-level Collector Analytics API host is `https://analytics.alephant.io`;
+do not mix that host with Cockpit API routes.
 
-支持：
+Real-time usage, daily costs, cost by model, and budget spent depend on the
+Virtual Key being bound to an agent or member. Call `scope()` first to inspect
+the current key's scope and entity. SDK v1 guarantees session-level request and
+cost attribution only; full journey steps, policy events, and grading require a
+future step/span contract.
+
+Supported methods:
 
 - `usage_summary(period="billing_cycle")`
 - `budget_status(period=None)`
@@ -12,4 +22,11 @@
 - `recent_requests(limit=20, offset=0)`
 - `health()`
 
-`usage_summary()`、`budget_status()`、`cost_by_model()` 和 `daily_costs()` 返回后端 `data` payload；`scope()` 有 `data` 时返回 `data`，没有 `data` 时返回后端顶层 JSON；`recent_requests()` 和 `health()` 返回后端顶层 JSON。调用方需要检查 `degraded` / `data_source`，并按后端字段单位处理 `cost_cents`、`spent_cents` 等金额字段。`recent_requests()` 当前可能返回 `degraded=true` 的空列表。v1 不提供管理员级 workspace analytics。
+`usage_summary()`, `budget_status()`, `cost_by_model()`, and `daily_costs()`
+return the backend `data` payload. `scope()` returns `data` when the backend
+includes it, otherwise it returns the top-level JSON response. `recent_requests()`
+and `health()` return top-level JSON responses. Callers should inspect
+`degraded` and `data_source`, and should treat amount fields such as
+`cost_cents` and `spent_cents` according to their backend units.
+`recent_requests()` can return an empty list with `degraded=true`. SDK v1 does
+not provide admin-level workspace analytics.
