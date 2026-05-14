@@ -1,8 +1,10 @@
 # Alephant Python SDK
 
-Alephant Python SDK 用于便捷请求 Alephant Gateway、自动生成会话 header、查询 Virtual Key 用量/费用，并接入 LangChain / LlamaIndex。
+Alephant Python SDK helps you call Alephant Gateway, generate session headers,
+query Virtual Key usage and cost analytics, and integrate with LangChain or
+LlamaIndex.
 
-## 安装
+## Installation
 
 ```bash
 pip install alephantai
@@ -12,7 +14,7 @@ pip install "alephantai[llamaindex]"
 
 ## Gateway Chat
 
-生产 Gateway host 是 `https://ai.alephant.io/v1`。
+The production Gateway host is `https://ai.alephant.io/v1`.
 
 ```python
 from alephantai import AlephantGatewayContext, create_openai_client
@@ -26,7 +28,11 @@ response = client.chat.completions.create(
 )
 ```
 
-SDK 默认只自动生成 `Alephant-Session-Id`。缓存、强制路由、prompt 模板等行为类 header 需要显式配置。v1 只保证 session 级请求/费用归因；完整 journey steps、policy events、grade 需要后续 step/span 契约。
+By default, the SDK only generates `Alephant-Session-Id`. Behavior headers such
+as cache controls, forced routing, and prompt template identifiers must be
+configured explicitly. Version 1 guarantees session-level request and cost
+attribution only; full journey steps, policy events, and grading require a
+future step/span contract.
 
 ## Analytics
 
