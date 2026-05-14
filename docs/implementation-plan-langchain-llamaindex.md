@@ -1,12 +1,12 @@
-# Alephant Python SDK Gateway Integrations Implementation Plan
+# Alephant Python SDK：Gateway 集成实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给执行 agent：** 按任务顺序实施；每个任务先写失败测试，再实现，再运行对应测试。步骤使用 checkbox（`- [ ]`）跟踪。
 
-**Goal:** Build the first Alephant Python SDK release for easy Alephant Gateway usage, session headers, Virtual Key cockpit analytics, and LangChain/LlamaIndex helpers.
+**目标：** 构建 Alephant Python SDK 第一版，让用户能便捷请求 Alephant Gateway、自动携带 session header、读取 Virtual Key 用量/费用（Cockpit API）统计，并接入 LangChain / LlamaIndex。
 
-**Architecture:** The SDK is a gateway convenience layer, not a direct collector ingestion SDK. Core modules own session/header generation and OpenAI-compatible gateway client creation; optional extras add LangChain and LlamaIndex helper factories without making them core dependencies.
+**架构边界：** SDK 是 Gateway convenience layer，不是直接写 Collector 的 ingestion SDK。核心模块负责 session/header 生成和 OpenAI-compatible Gateway client 创建；LangChain / LlamaIndex 通过 extras 提供 helper，不进入核心依赖。
 
-**Tech Stack:** Python 3.9+, `httpx`, `openai`, optional `langchain-openai`, optional `llama-index-llms-openai`, optional `llama-index-embeddings-openai`, `pytest`, `ruff`.
+**技术栈：** Python 3.9+、`httpx`、`openai`、可选 `langchain-openai`、可选 `llama-index-llms-openai`、可选 `llama-index-embeddings-openai`、`pytest`、`ruff`、`build`。
 
 ---
 
@@ -24,21 +24,22 @@
 - Create `src/alephantai/langchain/callback.py`: `AlephantCallbackHandler`.
 - Create `src/alephantai/llamaindex/__init__.py`: LlamaIndex public exports.
 - Create `src/alephantai/llamaindex/openai.py`: `create_openai_llm`, `create_openai_embedding`.
-- Create `src/alephantai/llamaindex/instrumentation.py`: `AlephantLlamaIndexHandler`.
 - Create `docs/gateway-headers.md`: SDK header behavior.
-- Create `docs/analytics.md`: Cockpit analytics usage.
+- Create `docs/analytics.md`: VK-authenticated usage/cost API usage.
 - Create `docs/langchain.md`: LangChain setup.
 - Create `docs/llamaindex.md`: LlamaIndex setup.
 - Create `examples/openai_gateway_chat.py`: Gateway chat example.
-- Create `examples/gateway_analytics.py`: Cockpit analytics example.
+- Create `examples/gateway_analytics.py`: usage/cost API example.
 - Create `examples/langchain_chat.py`: LangChain helper example.
 - Create `examples/llamaindex_rag.py`: LlamaIndex helper example.
+- Add release note: after publish, update frontend/public quickstarts from `alephantai-saas-api`
+  to the new runtime `alephantai` SDK where the user journey is Gateway usage.
 - Create `tests/test_context_headers.py`: context/header tests.
 - Create `tests/test_gateway_headers.py`: behavior header tests.
 - Create `tests/test_openai_gateway_client.py`: OpenAI helper tests.
 - Create `tests/test_analytics_client.py`: analytics tests.
 - Create `tests/test_langchain_integration.py`: LangChain import/helper/callback tests.
-- Create `tests/test_llamaindex_integration.py`: LlamaIndex import/helper/handler tests.
+- Create `tests/test_llamaindex_integration.py`: LlamaIndex import/helper tests.
 
 ## Task 1: Package Skeleton
 
@@ -94,19 +95,25 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-langchain = ["langchain-core>=0.2", "langchain-openai>=0.1"]
+langchain = [
+  "langchain-core>=0.2,<1; python_version < '3.10'",
+  "langchain-openai>=0.1,<1; python_version < '3.10'",
+  "langchain-core>=1,<2; python_version >= '3.10'",
+  "langchain-openai>=1.2,<2; python_version >= '3.10'",
+]
 llamaindex = [
   "llama-index-core>=0.10",
   "llama-index-llms-openai>=0.1",
   "llama-index-embeddings-openai>=0.1",
 ]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "ruff>=0.6", "build>=1.2", "twine>=5"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/alephantai"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
@@ -132,14 +139,15 @@ Replace `README.md`:
 ```markdown
 # python-sdk-alephant
 
-Alephant Python SDK 用于便捷配置 Alephant Gateway 请求、自动生成会话 header、查询 Virtual Key 统计，并接入 LangChain / LlamaIndex。
+Alephant Python SDK 用于便捷配置 Alephant Gateway 请求、自动生成会话 header、查询 Virtual Key 用量/费用，并接入 LangChain / LlamaIndex。
 ```
 
-- [ ] **Step 6: Run the import test**
+- [ ] **Step 6: Install editable dev package and run the import test**
 
 Run:
 
 ```bash
+python -m pip install -e ".[dev]"
 pytest tests/test_package_import.py -v
 ```
 
@@ -223,7 +231,7 @@ def test_explicit_gateway_headers_are_serialized():
         headers=GatewayHeaders(
             forced_routing="openai",
             prompt_id="prompt_123",
-            model_override="gpt-4o-mini",
+            log_model_override="gpt-4o-mini",
             cache=CacheHeaders(enabled=True, read=True, save=True, bucket_max_size=3),
         ),
         properties={"framework": "langchain", "app": "support-agent"},
@@ -328,7 +336,7 @@ class CacheHeaders:
 class GatewayHeaders:
     forced_routing: Optional[str] = None
     prompt_id: Optional[str] = None
-    model_override: Optional[str] = None
+    log_model_override: Optional[str] = None
     omit_request: Optional[bool] = None
     omit_response: Optional[bool] = None
     webhook_enabled: Optional[bool] = None
@@ -340,7 +348,7 @@ class GatewayHeaders:
     def __post_init__(self) -> None:
         _validate_text("forced_routing", self.forced_routing, 64)
         _validate_text("prompt_id", self.prompt_id, 128)
-        _validate_text("model_override", self.model_override, 128)
+        _validate_text("log_model_override", self.log_model_override, 128)
         _validate_text("posthog_api_key", self.posthog_api_key, 256)
         _validate_text("posthog_host", self.posthog_host, 256)
         _validate_text("lytix_key", self.lytix_key, 256)
@@ -351,14 +359,14 @@ class GatewayHeaders:
             headers["alephant-forced-routing"] = self.forced_routing
         if self.prompt_id is not None:
             headers["alephant-prompt-id"] = self.prompt_id
-        if self.model_override is not None:
-            headers["x-alephant-model-override"] = self.model_override
+        if self.log_model_override is not None:
+            headers["x-alephant-model-override"] = self.log_model_override
         if self.omit_request is True:
             headers["alephant-omit-request"] = "true"
         if self.omit_response is True:
             headers["alephant-omit-response"] = "true"
-        if self.webhook_enabled is not None:
-            headers["x-alephant-webhook-enabled"] = _bool_header(self.webhook_enabled)
+        if self.webhook_enabled is True:
+            headers["x-alephant-webhook-enabled"] = "true"
         if self.posthog_api_key is not None:
             headers["x-alephant-posthog-api-key"] = self.posthog_api_key
         if self.posthog_host is not None:
@@ -427,7 +435,11 @@ class AlephantGatewayContext:
         headers: Optional[GatewayHeaders] = None,
         properties: Optional[Mapping[str, object]] = None,
     ) -> None:
-        self.session_id = _validate_header_value("session_id", session_id, 128) if session_id else _new_session_id()
+        self.session_id = (
+            _validate_header_value("session_id", session_id, 128)
+            if session_id
+            else _new_session_id()
+        )
         self.session_name = (
             _validate_header_value("session_name", session_name, 128)
             if session_name is not None
@@ -541,7 +553,7 @@ from openai import OpenAI
 
 from .context import AlephantGatewayContext
 
-DEFAULT_GATEWAY_BASE_URL = "https://gateway.alephant.ai/v1"
+DEFAULT_GATEWAY_BASE_URL = "https://ai.alephant.io/v1"
 
 
 def create_openai_client(
@@ -633,7 +645,7 @@ def test_usage_summary_sends_vk_authorization_and_period():
 
     assert seen["url"] == "https://api.example.test/api/v1/cockpit/usage-summary?period=7d"
     assert seen["authorization"] == "Bearer vk-test"
-    assert result == {"data": {"requests": 3, "cost": 1.23}}
+    assert result == {"requests": 3, "cost": 1.23}
 
 
 def test_degraded_response_is_returned_without_masking():
@@ -647,6 +659,23 @@ def test_degraded_response_is_returned_without_masking():
     )
 
     assert client.recent_requests()["degraded"] is True
+
+
+def test_health_does_not_send_authorization():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["authorization"] = request.headers.get("Authorization")
+        return httpx.Response(200, json={"status": "healthy"})
+
+    client = AlephantAnalyticsClient(
+        api_key="vk-test",
+        base_url="https://api.example.test/api/v1",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.health() == {"status": "healthy"}
+    assert seen["authorization"] is None
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -670,7 +699,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-DEFAULT_API_BASE_URL = "https://api.alephant.ai/api/v1"
+DEFAULT_API_BASE_URL = "https://alephant.io/api/v1"
 
 
 class AlephantAnalyticsClient:
@@ -686,7 +715,7 @@ class AlephantAnalyticsClient:
         self.base_url = base_url.rstrip("/")
         self._client = http_client or httpx.Client(timeout=timeout)
 
-    def _get(self, path: str, **params: object) -> Dict[str, Any]:
+    def _get_raw(self, path: str, **params: object) -> Dict[str, Any]:
         clean_params = {key: value for key, value in params.items() if value is not None}
         response = self._client.get(
             f"{self.base_url}{path}",
@@ -699,23 +728,37 @@ class AlephantAnalyticsClient:
             raise ValueError("Alephant analytics response must be a JSON object")
         return data
 
-    def usage_summary(self, *, period: str = "billing_cycle") -> Dict[str, Any]:
-        return self._get("/cockpit/usage-summary", period=period)
+    def _get_data(self, path: str, **params: object) -> Any:
+        envelope = self._get_raw(path, **params)
+        if "data" not in envelope:
+            raise ValueError("Alephant analytics data response must contain a data field")
+        return envelope["data"]
 
-    def budget_status(self, *, period: Optional[str] = None) -> Dict[str, Any]:
-        return self._get("/cockpit/budget-status", period=period)
+    def usage_summary(self, *, period: str = "billing_cycle") -> Any:
+        return self._get_data("/cockpit/usage-summary", period=period)
 
-    def cost_by_model(self, *, period: str = "billing_cycle") -> Dict[str, Any]:
-        return self._get("/cockpit/cost-by-model", period=period)
+    def budget_status(self, *, period: Optional[str] = None) -> Any:
+        return self._get_data("/cockpit/budget-status", period=period)
 
-    def daily_costs(self, *, period: str = "billing_cycle") -> Dict[str, Any]:
-        return self._get("/cockpit/daily-costs", period=period)
+    def cost_by_model(self, *, period: str = "billing_cycle") -> Any:
+        return self._get_data("/cockpit/cost-by-model", period=period)
 
-    def scope(self) -> Dict[str, Any]:
-        return self._get("/cockpit/scope")
+    def daily_costs(self, *, period: str = "billing_cycle") -> Any:
+        return self._get_data("/cockpit/daily-costs", period=period)
+
+    def scope(self) -> Any:
+        return self._get_data("/cockpit/scope")
 
     def recent_requests(self, *, limit: int = 20, offset: int = 0) -> Dict[str, Any]:
-        return self._get("/cockpit/recent-requests", limit=limit, offset=offset)
+        return self._get_raw("/cockpit/recent-requests", limit=limit, offset=offset)
+
+    def health(self) -> Dict[str, Any]:
+        response = self._client.get(f"{self.base_url}/cockpit/health")
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ValueError("Alephant analytics response must be a JSON object")
+        return data
 ```
 
 - [ ] **Step 4: Export analytics client**
@@ -772,6 +815,9 @@ git commit -m "feat: add cockpit analytics client"
 Create `tests/test_langchain_integration.py`:
 
 ```python
+import sys
+import types
+
 import pytest
 
 from alephantai import AlephantGatewayContext
@@ -792,8 +838,16 @@ def test_langchain_callback_does_not_raise_by_default():
     handler.on_chain_end(outputs={})
 
 
-def test_create_chat_openai_configures_gateway_headers():
-    pytest.importorskip("langchain_openai")
+def test_create_chat_openai_passes_gateway_config_to_langchain(monkeypatch):
+    seen = {}
+
+    class FakeChatOpenAI:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+    fake_module = types.ModuleType("langchain_openai")
+    fake_module.ChatOpenAI = FakeChatOpenAI
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_module)
 
     ctx = AlephantGatewayContext(session_id="sess-langchain")
     llm = create_chat_openai(
@@ -801,10 +855,22 @@ def test_create_chat_openai_configures_gateway_headers():
         base_url="https://gateway.example.test/v1",
         context=ctx,
         model="gpt-4o-mini",
+        default_headers={"x-user-header": "1"},
     )
 
-    assert str(llm.openai_api_base) == "https://gateway.example.test/v1"
-    assert llm.default_headers["Alephant-Session-Id"] == "sess-langchain"
+    assert isinstance(llm, FakeChatOpenAI)
+    assert seen["api_key"] == "vk-test"
+    assert seen["base_url"] == "https://gateway.example.test/v1"
+    assert seen["model"] == "gpt-4o-mini"
+    assert seen["default_headers"]["x-user-header"] == "1"
+    assert seen["default_headers"]["Alephant-Session-Id"] == "sess-langchain"
+
+
+def test_create_chat_openai_reports_missing_extra(monkeypatch):
+    monkeypatch.setitem(sys.modules, "langchain_openai", None)
+
+    with pytest.raises(ImportError, match='alephantai\\[langchain\\]'):
+        create_chat_openai(api_key="vk-test", model="gpt-4o-mini")
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -831,40 +897,46 @@ from alephantai.context import AlephantGatewayContext
 
 logger = logging.getLogger(__name__)
 
+try:
+    from langchain_core.callbacks import BaseCallbackHandler
+except ImportError:
+    class BaseCallbackHandler:  # type: ignore[no-redef]
+        pass
 
-class AlephantCallbackHandler:
+
+class AlephantCallbackHandler(BaseCallbackHandler):
     """Lightweight LangChain callback that keeps an Alephant context available."""
 
     def __init__(self, *, context: Optional[AlephantGatewayContext] = None, strict: bool = False) -> None:
+        super().__init__()
         self.context = context or AlephantGatewayContext()
         self.strict = strict
-
-    def _safe(self, fn_name: str, *args: Any, **kwargs: Any) -> None:
-        try:
-            return None
-        except Exception as exc:
-            if self.strict:
-                raise
-            logger.debug("Alephant LangChain callback %s failed: %s", fn_name, exc)
-            return None
+        self.raise_error = strict
 
     def on_chain_start(self, serialized: Any, inputs: Any, **kwargs: Any) -> None:
-        self._safe("on_chain_start", serialized, inputs, **kwargs)
+        return None
 
     def on_chain_end(self, outputs: Any, **kwargs: Any) -> None:
-        self._safe("on_chain_end", outputs, **kwargs)
+        return None
 
     def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
-        self._safe("on_chain_error", error, **kwargs)
+        if self.strict:
+            logger.debug("Alephant LangChain callback observed chain error: %s", error)
+        return None
 
     def on_llm_start(self, serialized: Any, prompts: Any, **kwargs: Any) -> None:
-        self._safe("on_llm_start", serialized, prompts, **kwargs)
+        return None
+
+    def on_chat_model_start(self, serialized: Any, messages: Any, **kwargs: Any) -> None:
+        return None
 
     def on_llm_end(self, response: Any, **kwargs: Any) -> None:
-        self._safe("on_llm_end", response, **kwargs)
+        return None
 
     def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
-        self._safe("on_llm_error", error, **kwargs)
+        if self.strict:
+            logger.debug("Alephant LangChain callback observed LLM error: %s", error)
+        return None
 ```
 
 - [ ] **Step 4: Implement LangChain OpenAI helper**
@@ -896,11 +968,13 @@ def create_chat_openai(
         ) from exc
 
     ctx = context or AlephantGatewayContext()
+    user_headers = dict(kwargs.pop("default_headers", {}) or {})
+    default_headers = {**user_headers, **ctx.headers()}
     return ChatOpenAI(
         api_key=api_key,
         base_url=base_url,
         model=model,
-        default_headers=ctx.headers(),
+        default_headers=default_headers,
         **kwargs,
     )
 ```
@@ -924,7 +998,7 @@ Run:
 pytest tests/test_langchain_integration.py -v
 ```
 
-Expected: PASS, or SKIP only for tests guarded by `pytest.importorskip` if optional dependencies are not installed.
+Expected: PASS. Optional framework modules are mocked, and missing-extra behavior is tested directly.
 
 - [ ] **Step 7: Commit**
 
@@ -938,7 +1012,6 @@ git commit -m "feat: add langchain gateway helpers"
 **Files:**
 - Create: `src/alephantai/llamaindex/__init__.py`
 - Create: `src/alephantai/llamaindex/openai.py`
-- Create: `src/alephantai/llamaindex/instrumentation.py`
 - Create: `tests/test_llamaindex_integration.py`
 
 - [ ] **Step 1: Write failing LlamaIndex tests**
@@ -946,28 +1019,29 @@ git commit -m "feat: add langchain gateway helpers"
 Create `tests/test_llamaindex_integration.py`:
 
 ```python
+import sys
+import types
+
 import pytest
 
 from alephantai import AlephantGatewayContext
-from alephantai.llamaindex import AlephantLlamaIndexHandler, create_openai_embedding, create_openai_llm
+from alephantai.llamaindex import create_openai_embedding, create_openai_llm
 
 
-def test_llamaindex_handler_reuses_context():
-    ctx = AlephantGatewayContext(session_id="sess-llama")
-    handler = AlephantLlamaIndexHandler(context=ctx)
+def test_create_openai_llm_passes_gateway_config(monkeypatch):
+    seen = {}
 
-    assert handler.context.headers()["Alephant-Session-Id"] == "sess-llama"
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
 
-
-def test_llamaindex_handler_install_is_non_disruptive():
-    handler = AlephantLlamaIndexHandler(context=AlephantGatewayContext())
-
-    handler.install()
-    handler.uninstall()
-
-
-def test_create_openai_llm_requires_optional_dependency_when_missing():
-    pytest.importorskip("llama_index.llms.openai")
+    llama_index = types.ModuleType("llama_index")
+    llms = types.ModuleType("llama_index.llms")
+    openai_module = types.ModuleType("llama_index.llms.openai")
+    openai_module.OpenAI = FakeOpenAI
+    monkeypatch.setitem(sys.modules, "llama_index", llama_index)
+    monkeypatch.setitem(sys.modules, "llama_index.llms", llms)
+    monkeypatch.setitem(sys.modules, "llama_index.llms.openai", openai_module)
 
     ctx = AlephantGatewayContext(session_id="sess-llama")
     llm = create_openai_llm(
@@ -975,13 +1049,31 @@ def test_create_openai_llm_requires_optional_dependency_when_missing():
         base_url="https://gateway.example.test/v1",
         context=ctx,
         model="gpt-4o-mini",
+        default_headers={"x-user-header": "1"},
     )
 
-    assert llm.additional_kwargs["default_headers"]["Alephant-Session-Id"] == "sess-llama"
+    assert isinstance(llm, FakeOpenAI)
+    assert seen["api_key"] == "vk-test"
+    assert seen["api_base"] == "https://gateway.example.test/v1"
+    assert seen["model"] == "gpt-4o-mini"
+    assert seen["default_headers"]["x-user-header"] == "1"
+    assert seen["default_headers"]["Alephant-Session-Id"] == "sess-llama"
 
 
-def test_create_openai_embedding_requires_optional_dependency_when_missing():
-    pytest.importorskip("llama_index.embeddings.openai")
+def test_create_openai_embedding_passes_gateway_config(monkeypatch):
+    seen = {}
+
+    class FakeOpenAIEmbedding:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+    llama_index = types.ModuleType("llama_index")
+    embeddings = types.ModuleType("llama_index.embeddings")
+    openai_module = types.ModuleType("llama_index.embeddings.openai")
+    openai_module.OpenAIEmbedding = FakeOpenAIEmbedding
+    monkeypatch.setitem(sys.modules, "llama_index", llama_index)
+    monkeypatch.setitem(sys.modules, "llama_index.embeddings", embeddings)
+    monkeypatch.setitem(sys.modules, "llama_index.embeddings.openai", openai_module)
 
     ctx = AlephantGatewayContext(session_id="sess-llama")
     embed_model = create_openai_embedding(
@@ -989,9 +1081,29 @@ def test_create_openai_embedding_requires_optional_dependency_when_missing():
         base_url="https://gateway.example.test/v1",
         context=ctx,
         model="text-embedding-3-small",
+        default_headers={"x-user-header": "1"},
     )
 
-    assert embed_model.additional_kwargs["default_headers"]["Alephant-Session-Id"] == "sess-llama"
+    assert isinstance(embed_model, FakeOpenAIEmbedding)
+    assert seen["api_key"] == "vk-test"
+    assert seen["api_base"] == "https://gateway.example.test/v1"
+    assert seen["model"] == "text-embedding-3-small"
+    assert seen["default_headers"]["x-user-header"] == "1"
+    assert seen["default_headers"]["Alephant-Session-Id"] == "sess-llama"
+
+
+def test_create_openai_llm_reports_missing_extra(monkeypatch):
+    monkeypatch.setitem(sys.modules, "llama_index.llms.openai", None)
+
+    with pytest.raises(ImportError, match='alephantai\\[llamaindex\\]'):
+        create_openai_llm(api_key="vk-test", model="gpt-4o-mini")
+
+
+def test_create_openai_embedding_reports_missing_extra(monkeypatch):
+    monkeypatch.setitem(sys.modules, "llama_index.embeddings.openai", None)
+
+    with pytest.raises(ImportError, match='alephantai\\[llamaindex\\]'):
+        create_openai_embedding(api_key="vk-test", model="text-embedding-3-small")
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1004,45 +1116,7 @@ pytest tests/test_llamaindex_integration.py -v
 
 Expected: FAIL because `alephantai.llamaindex` does not exist.
 
-- [ ] **Step 3: Implement LlamaIndex instrumentation handler**
-
-Create `src/alephantai/llamaindex/instrumentation.py`:
-
-```python
-from __future__ import annotations
-
-import logging
-from typing import Optional
-
-from alephantai.context import AlephantGatewayContext
-
-logger = logging.getLogger(__name__)
-
-
-class AlephantLlamaIndexHandler:
-    def __init__(self, *, context: Optional[AlephantGatewayContext] = None, strict: bool = False) -> None:
-        self.context = context or AlephantGatewayContext()
-        self.strict = strict
-        self._installed = False
-
-    def install(self) -> None:
-        try:
-            self._installed = True
-        except Exception as exc:
-            if self.strict:
-                raise
-            logger.debug("Alephant LlamaIndex install failed: %s", exc)
-
-    def uninstall(self) -> None:
-        try:
-            self._installed = False
-        except Exception as exc:
-            if self.strict:
-                raise
-            logger.debug("Alephant LlamaIndex uninstall failed: %s", exc)
-```
-
-- [ ] **Step 4: Implement LlamaIndex OpenAI helpers**
+- [ ] **Step 3: Implement LlamaIndex OpenAI helpers**
 
 Create `src/alephantai/llamaindex/openai.py`:
 
@@ -1071,11 +1145,13 @@ def create_openai_llm(
         ) from exc
 
     ctx = context or AlephantGatewayContext()
+    user_headers = dict(kwargs.pop("default_headers", {}) or {})
+    default_headers = {**user_headers, **ctx.headers()}
     return OpenAI(
         api_key=api_key,
         api_base=base_url,
         model=model,
-        additional_kwargs={"default_headers": ctx.headers()},
+        default_headers=default_headers,
         **kwargs,
     )
 
@@ -1096,27 +1172,28 @@ def create_openai_embedding(
         ) from exc
 
     ctx = context or AlephantGatewayContext()
+    user_headers = dict(kwargs.pop("default_headers", {}) or {})
+    default_headers = {**user_headers, **ctx.headers()}
     return OpenAIEmbedding(
         api_key=api_key,
         api_base=base_url,
         model=model,
-        additional_kwargs={"default_headers": ctx.headers()},
+        default_headers=default_headers,
         **kwargs,
     )
 ```
 
-- [ ] **Step 5: Export LlamaIndex integration**
+- [ ] **Step 4: Export LlamaIndex integration**
 
 Create `src/alephantai/llamaindex/__init__.py`:
 
 ```python
-from .instrumentation import AlephantLlamaIndexHandler
 from .openai import create_openai_embedding, create_openai_llm
 
-__all__ = ["AlephantLlamaIndexHandler", "create_openai_embedding", "create_openai_llm"]
+__all__ = ["create_openai_embedding", "create_openai_llm"]
 ```
 
-- [ ] **Step 6: Run tests**
+- [ ] **Step 5: Run tests**
 
 Run:
 
@@ -1124,9 +1201,9 @@ Run:
 pytest tests/test_llamaindex_integration.py -v
 ```
 
-Expected: PASS, or SKIP only for tests guarded by `pytest.importorskip` if optional dependencies are not installed.
+Expected: PASS. Optional framework modules are mocked, and missing-extra behavior is tested directly.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/alephantai/llamaindex tests/test_llamaindex_integration.py
@@ -1153,7 +1230,7 @@ Replace `README.md`:
 ```markdown
 # Alephant Python SDK
 
-Alephant Python SDK 用于便捷请求 Alephant Gateway、自动生成会话 header、查询 Virtual Key 统计，并接入 LangChain / LlamaIndex。
+Alephant Python SDK 用于便捷请求 Alephant Gateway、自动生成会话 header、查询 Virtual Key 用量/费用，并接入 LangChain / LlamaIndex。
 
 ## 安装
 
@@ -1226,7 +1303,7 @@ Create `docs/analytics.md`:
 ```markdown
 # Analytics
 
-`AlephantAnalyticsClient` 使用 `Authorization: Bearer vk-...` 查询当前 Virtual Key 的 Cockpit 数据。
+`AlephantAnalyticsClient` 使用 `Authorization: Bearer vk-...` 查询 Virtual Key 认证的用量/费用（Cockpit API）数据。实时 usage、daily costs、cost by model、budget spent 依赖该 VK 绑定到 agent 或 member；建议先调用 `scope()` 判断当前 key 的 scope/entity。
 
 支持：
 
@@ -1236,8 +1313,9 @@ Create `docs/analytics.md`:
 - `daily_costs(period="billing_cycle")`
 - `scope()`
 - `recent_requests(limit=20, offset=0)`
+- `health()`
 
-v1 不提供管理员级 workspace analytics。
+`usage_summary()`、`budget_status()`、`cost_by_model()`、`daily_costs()` 和 `scope()` 返回后端 `data` payload；`recent_requests()` 和 `health()` 返回后端顶层 JSON。调用方需要检查 `degraded` / `data_source`，并按后端字段单位处理 `cost_cents`、`spent_cents` 等金额字段。`recent_requests()` 当前可能返回 `degraded=true` 的空列表。v1 不提供管理员级 workspace analytics。
 ```
 
 - [ ] **Step 4: Write LangChain docs**
@@ -1354,7 +1432,7 @@ Run:
 pytest -v
 ```
 
-Expected: PASS, with optional framework tests skipped only when optional dependencies are absent.
+Expected: PASS. Optional framework dependencies are mocked in unit tests; missing-extra behavior is tested explicitly.
 
 - [ ] **Step 2: Run ruff**
 
@@ -1371,13 +1449,34 @@ Expected: PASS.
 Run:
 
 ```bash
-python -m pip install build
 python -m build
 ```
 
 Expected: `dist/alephantai-0.1.0-py3-none-any.whl` and source distribution are created.
 
-- [ ] **Step 4: Inspect git status**
+- [ ] **Step 4: Check package metadata**
+
+Run:
+
+```bash
+twine check dist/*
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Install built wheel in a clean venv**
+
+Run:
+
+```bash
+python -m venv /tmp/alephantai-wheel-smoke
+/tmp/alephantai-wheel-smoke/bin/python -m pip install dist/alephantai-0.1.0-py3-none-any.whl
+/tmp/alephantai-wheel-smoke/bin/python -c "import alephantai; print(alephantai.__version__)"
+```
+
+Expected: prints `0.1.0`.
+
+- [ ] **Step 6: Inspect git status**
 
 Run:
 
@@ -1387,7 +1486,7 @@ git status --short
 
 Expected: only intentional files are modified; no generated caches are staged.
 
-- [ ] **Step 5: Commit final fixes if needed**
+- [ ] **Step 7: Commit final fixes if needed**
 
 If verification required changes, stage only SDK source, test, doc, example, and packaging files:
 
@@ -1400,6 +1499,6 @@ If no changes were needed, do not create an empty commit.
 
 ## Self-Review Notes
 
-- Spec coverage: plan covers package skeleton, session/header defaults, explicit behavior headers, OpenAI Gateway helper, Virtual Key cockpit analytics, LangChain helper/callback, LlamaIndex helpers/handler, docs, examples, and final verification.
+- Spec coverage: plan covers package skeleton, session/header defaults, explicit behavior headers, OpenAI Gateway helper, VK-authenticated usage/cost APIs, LangChain helper/callback, LlamaIndex helpers, docs, examples, and final verification.
 - Placeholder scan: no placeholder markers or vague implementation steps remain.
-- Type consistency: public names are consistent across tasks: `AlephantGatewayContext`, `GatewayHeaders`, `CacheHeaders`, `create_openai_client`, `AlephantAnalyticsClient`, `create_chat_openai`, `AlephantCallbackHandler`, `create_openai_llm`, `create_openai_embedding`, `AlephantLlamaIndexHandler`.
+- Type consistency: public names are consistent across tasks: `AlephantGatewayContext`, `GatewayHeaders`, `CacheHeaders`, `create_openai_client`, `AlephantAnalyticsClient`, `create_chat_openai`, `AlephantCallbackHandler`, `create_openai_llm`, `create_openai_embedding`.

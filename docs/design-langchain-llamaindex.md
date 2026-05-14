@@ -15,7 +15,7 @@ SDK 应帮助开发者：
 - 用类型化配置生成 Alephant Gateway 请求头，避免手写 header 字典。
 - 快速创建 OpenAI-compatible Gateway client。
 - 快速创建已配置好 Alephant Gateway 的 LangChain / LlamaIndex LLM client。
-- 可选读取当前 Virtual Key 范围内的用量、成本、预算和模型分布等统计信息。
+- 可选读取 VK 认证的用量、成本、预算和模型分布；实时统计依赖 VK 绑定到 agent/member。
 
 Alephant Gateway 和 Collector 仍然是成本、tokens、provider、model、缓存行为、请求日志的事实来源。Python SDK 不直接写 Collector，不在本地计算账单事实。
 
@@ -87,7 +87,6 @@ python-sdk-alephant/
         openai.py
       llamaindex/
         __init__.py
-        instrumentation.py
         openai.py
   tests/
     test_context_headers.py
@@ -95,7 +94,7 @@ python-sdk-alephant/
     test_openai_gateway_client.py
     test_analytics_client.py
     test_langchain_callback.py
-    test_llamaindex_instrumentation.py
+    test_llamaindex_integration.py
 ```
 
 ## 核心 API
@@ -151,7 +150,7 @@ ctx = AlephantGatewayContext(
         forced_routing="openai",
         prompt_id="prompt_123",
         cache=CacheHeaders(enabled=True, read=True, save=True),
-        model_override="gpt-4o-mini",
+        log_model_override="gpt-4o-mini",
     )
 )
 ```
@@ -169,7 +168,7 @@ SDK 自动生成：
 - Alephant-Cache-*
 - alephant-forced-routing
 - alephant-prompt-id
-- x-alephant-model-override
+- x-alephant-model-override（日志元数据，不改变真实请求模型）
 - alephant-omit-request
 - alephant-omit-response
 - x-alephant-webhook-enabled
@@ -184,6 +183,11 @@ v1 不生成：
 ```
 
 行为类 header 必须显式配置，因为它们会改变网关行为，例如路由、缓存、prompt 合并或日志保存。
+
+HTTP header 名大小写不敏感。SDK 对会话头使用 `Alephant-Session-Id` / `Alephant-Session-Name` /
+`Alephant-Session-Path` 作为文档和示例里的规范写法；网关侧也应继续接受小写形式。
+
+`x-alephant-webhook-enabled` 是 presence-based header，只有用户显式启用时才发送；不发送 `false`。`x-alephant-model-override` 当前只进入日志元数据，不代表网关会改写实际 model 参数。
 
 ### 自定义属性
 
@@ -219,7 +223,7 @@ ctx = AlephantGatewayContext(session_name="quickstart-chat")
 
 client = create_openai_client(
     api_key="vk-...",
-    base_url="https://gateway.alephant.ai/v1",
+    base_url="https://ai.alephant.io/v1",
     context=ctx,
 )
 
@@ -237,9 +241,11 @@ response = client.chat.completions.create(
 
 v1 不封装所有 provider SDK。后续是否增加 Anthropic、Gemini 等 helper，取决于实际用户需求。
 
-## 统计分析读取能力
+## 用量/费用读取能力
 
-SDK 可以提供统计分析读取能力，但第一版应限制在 **Virtual Key / Cockpit 范围**，也就是适合终端开发者直接用自己的 `vk-...` 查询当前 key 相关数据。
+SDK 可以提供 Virtual Key 认证的用量/费用读取能力，但第一版应限制在 **Cockpit API 范围**，也就是适合终端开发者用自己的 `vk-...` 查询该 key 可见的数据。
+
+注意：后端实时 usage、daily costs、cost by model、budget spent 依赖 Virtual Key 绑定到 `agent` 或 `member` 实体。未绑定实体的 VK 可能返回 degraded/empty 数据。SDK 文档应建议先调用 `scope()` 判断当前 key 的 scope/entity，再解释统计结果。
 
 推荐新增 `AlephantAnalyticsClient`：
 
@@ -248,16 +254,18 @@ from alephantai.analytics import AlephantAnalyticsClient
 
 analytics = AlephantAnalyticsClient(
     api_key="vk-...",
-    base_url="https://api.alephant.ai/api/v1",
+    base_url="https://alephant.io/api/v1",
 )
 
 summary = analytics.usage_summary(period="billing_cycle")
 models = analytics.cost_by_model(period="7d")
 budget = analytics.budget_status()
 daily = analytics.daily_costs(period="30d")
+scope = analytics.scope()
+recent = analytics.recent_requests(limit=20)
 ```
 
-对应后端已有 Cockpit 语义：
+对应后端已有 Cockpit API 语义：
 
 - `GET /api/v1/cockpit/usage-summary`
 - `GET /api/v1/cockpit/budget-status`
@@ -265,18 +273,23 @@ daily = analytics.daily_costs(period="30d")
 - `GET /api/v1/cockpit/daily-costs`
 - `GET /api/v1/cockpit/scope`
 - `GET /api/v1/cockpit/recent-requests`，如果后端仍标记 degraded，SDK 文档应如实说明。
+- `GET /api/v1/cockpit/health`，用于无认证健康检查，不代表某个 Virtual Key 的统计数据。
 
 v1 不建议默认暴露完整工作区管理员 analytics，因为那通常需要 SaaS 用户身份、workspace 权限、`X-Workspace-Id`、以及更复杂的 RBAC。可以后续作为 `alephantai-saas-api` 或 admin extra 的能力。
 
-统计能力边界：
+包命名上，`alephantai` 定位为运行时 Gateway SDK；`alephantai-saas-api` / Fern 生成客户端定位为 SaaS 管理 API 或后台管理客户端。SDK 发布后，需要同步更新前端和公开 quickstart，避免两个包在用户路径里混用。
+
+用量/费用能力边界：
 
 ```text
 v1 支持：
-- 当前 Virtual Key 的 usage summary
-- 当前 Virtual Key 的 budget status
-- 当前 Virtual Key 的 cost by model
-- 当前 Virtual Key 的 daily costs
-- 当前 Virtual Key 的 scope 信息
+- VK 认证的 scope 信息
+- entity-bound VK 的 usage summary
+- entity-bound VK 的 budget status / spent
+- entity-bound VK 的 cost by model
+- entity-bound VK 的 daily costs
+- VK 认证的 recent requests；若响应包含 `degraded: true`，SDK 原样返回并在文档中说明
+- Cockpit health check；该接口无认证，仅用于连通性/健康状态检查
 
 v1 暂不支持：
 - 管理员级全 workspace analytics
@@ -285,6 +298,8 @@ v1 暂不支持：
 ```
 
 这样 SDK 既能帮助用户“发起网关请求”，也能帮助用户“看到这个 key 产生了什么成本和使用情况”。
+
+`usage_summary()`、`budget_status()`、`cost_by_model()`、`daily_costs()` 和 `scope()` 返回后端 `data` payload，隐藏 `{"data": ...}` envelope。`recent_requests()` 和 `health()` 返回后端顶层 JSON，因为它们当前不是同一 envelope 形状。SDK 不转换 UI 展示单位，调用方需要按响应字段判断 `degraded`、`data_source`，并按后端 schema 处理 `cost_cents`、`spent_cents` 等金额单位。
 
 ## LangChain 集成
 
@@ -298,7 +313,7 @@ ctx = AlephantGatewayContext(session_name="langchain-chat")
 
 llm = create_chat_openai(
     api_key="vk-...",
-    base_url="https://gateway.alephant.ai/v1",
+    base_url="https://ai.alephant.io/v1",
     context=ctx,
     model="gpt-4o-mini",
 )
@@ -327,7 +342,7 @@ handler = AlephantCallbackHandler(context=ctx)
 from langchain_openai import ChatOpenAI
 
 llm = ChatOpenAI(
-    base_url="https://gateway.alephant.ai/v1",
+    base_url="https://ai.alephant.io/v1",
     api_key="vk-...",
     default_headers=ctx.headers(),
 )
@@ -341,12 +356,12 @@ llm.invoke(
 职责：
 
 - 提供常见 OpenAI-compatible LangChain model helper。
-- 确保同一次 chain、agent 或 chat 使用同一个 `Alephant-Session-Id`。
+- 确保同一次 chain、agent 或 chat 使用同一个 `Alephant-Session-Id`，实现 session 级归因和费用聚合。
 - 提供 callback 给已有 LangChain 工程使用。
 - callback 默认不抛异常，不能影响用户 chain 执行。
 - v1 不生成 step / parent-step header。
 
-Callback 可以记录轻量本地调试信息，但在没有稳定网关/后端契约之前，不主动上报到 Alephant。
+Callback 可以记录轻量本地调试信息，但在没有稳定网关/后端 step/span 契约之前，不主动上报到 Alephant。SDK v1 不承诺把 LangChain 内部 span tree 映射成前端完整 journey steps。
 
 ## LlamaIndex 集成
 
@@ -360,7 +375,7 @@ ctx = AlephantGatewayContext(session_name="llamaindex-rag")
 
 llm = create_openai_llm(
     api_key="vk-...",
-    base_url="https://gateway.alephant.ai/v1",
+    base_url="https://ai.alephant.io/v1",
     context=ctx,
     model="gpt-4o-mini",
 )
@@ -373,29 +388,19 @@ from alephantai.llamaindex import create_openai_embedding
 
 embed_model = create_openai_embedding(
     api_key="vk-...",
-    base_url="https://gateway.alephant.ai/v1",
+    base_url="https://ai.alephant.io/v1",
     context=ctx,
     model="text-embedding-3-small",
 )
 ```
 
-Instrumentation 作为进阶能力，用于把更大的 query 生命周期绑定到同一个 context：
-
-```python
-from alephantai import AlephantGatewayContext
-from alephantai.llamaindex import AlephantLlamaIndexHandler
-
-ctx = AlephantGatewayContext(session_name="llamaindex-rag")
-handler = AlephantLlamaIndexHandler(context=ctx)
-handler.install()
-```
+Instrumentation 暂不进入 v1。第一版只通过 LLM / embedding helper 把 `Alephant-Session-Id`
+稳定注入实际发往 Gateway 的请求，避免发布一个不接入 LlamaIndex dispatcher 的 no-op handler。
 
 职责：
 
 - 提供常见 OpenAI-compatible LlamaIndex LLM / embedding helper。
-- 确保 LlamaIndex 的 LLM/embedding 请求进入同一个 Alephant session。
-- 优先使用 LlamaIndex 当前 instrumentation 机制。
-- instrumentation API 变化时不能破坏用户 query 执行。
+- 确保 LlamaIndex 的 LLM/embedding 请求进入同一个 Alephant session，实现 session 级归因和费用聚合。
 - 不直接写日志、不本地计算成本。
 
 ## 后端对齐
@@ -406,6 +411,7 @@ handler.install()
 - Collector 已有 `request_response_rmt.session_id` 列。
 - Sessions analytics 基于 `request_response_rmt.session_id` 聚合。
 - ClickHouse 已存在 step 相关列，但 SDK v1 不发送 step header。
+- SDK v1 只保证 session 级分组、请求记录和费用归因；完整 journey steps、policy events、grade 等前端旅程细节依赖后端已有数据与后续 step/span 契约。
 
 关键要求：
 
@@ -474,8 +480,6 @@ LlamaIndex 测试：
 - 未安装 LlamaIndex 时 core package 可正常 import。
 - 安装 extra 后 integration 可 import。
 - OpenAI LLM / embedding helper 包含 gateway `base_url`、Virtual Key auth、context headers。
-- handler install/uninstall 尽量幂等。
-- handler 复用传入的 context，不创建无关 session。
 
 ## 文档
 
@@ -483,7 +487,7 @@ LlamaIndex 测试：
 
 - `README.md`：OpenAI-compatible Gateway quickstart。
 - `docs/gateway-headers.md`：SDK header 行为说明。
-- `docs/analytics.md`：Virtual Key / Cockpit 统计查询说明。
+- `docs/analytics.md`：VK 认证的用量/费用查询说明。
 - `docs/langchain.md`：LangChain + Alephant Gateway 配置。
 - `docs/llamaindex.md`：LlamaIndex + Alephant Gateway 配置。
 
@@ -494,13 +498,13 @@ LlamaIndex 测试：
 - 用户可以手动指定或覆盖 `session_id`。
 - 行为类 Gateway header 必须显式配置。
 - v1 不生成 Collector step headers。
-- v1 统计分析读取聚焦 Virtual Key / Cockpit 范围。
+- v1 用量/费用读取聚焦 VK 认证的 Cockpit API 范围；实时统计依赖 VK 绑定到 agent/member。
 
 ## MVP 验收标准
 
 - Python 开发者可以在 5 行以内创建 Alephant Gateway session。
 - Python 开发者可以快速创建指向 Alephant Gateway 的 OpenAI-compatible client。
-- Python 开发者可以用 SDK 查询当前 Virtual Key 的 usage/cost/budget/model 分布。
+- Python 开发者可以用 SDK 查询 VK 认证的 usage/cost/budget/model 分布，并能识别 degraded/empty 响应。
 - LangChain 开发者可以不用手写 headers 创建 Gateway-configured `ChatOpenAI`。
 - LlamaIndex 开发者可以不用手写 headers 创建 Gateway-configured OpenAI LLM / embedding model。
 - 默认 SDK 行为只影响 session 归因，不改变路由、缓存、prompt、日志省略等行为。
