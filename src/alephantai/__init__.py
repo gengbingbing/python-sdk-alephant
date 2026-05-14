@@ -2,6 +2,7 @@
 
 from .context import AlephantGatewayContext
 from .headers import CacheHeaders, GatewayHeaders
+from .openai import create_openai_client
 
 __version__ = "0.1.0"
 
@@ -10,4 +11,5 @@ __all__ = [
     "AlephantGatewayContext",
     "CacheHeaders",
     "GatewayHeaders",
+    "create_openai_client",
 ]
