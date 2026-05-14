@@ -1,48 +1,51 @@
-# Alephant Python SDK: LangChain and LlamaIndex Gateway Integration Design
+# Alephant Python SDK：LangChain / LlamaIndex 网关集成设计
 
-Date: 2026-05-14
-Status: Approved for implementation planning
-Scope: `python-sdk-alephant`
+日期：2026-05-14  
+状态：已确认，进入实施计划前复审  
+范围：`python-sdk-alephant`
 
-## Goal
+## 目标
 
-Build a Python SDK that makes Alephant Gateway easy to use from Python AI applications, especially LangChain and LlamaIndex applications.
+构建一个 Python SDK，让 Python AI 应用可以更方便地使用 Alephant Gateway，尤其是 LangChain 和 LlamaIndex 应用。
 
-The SDK should help developers:
+SDK 应帮助开发者：
 
-- Start or reuse an Alephant session.
-- Configure Alephant Gateway request headers without hand-writing header dictionaries.
-- Send OpenAI-compatible requests through Alephant Gateway with minimal setup.
-- Attach the same gateway/session configuration to LangChain and LlamaIndex flows.
+- 快速创建或复用 Alephant 会话。
+- 自动生成并携带 `Alephant-Session-Id`。
+- 用类型化配置生成 Alephant Gateway 请求头，避免手写 header 字典。
+- 快速创建 OpenAI-compatible Gateway client。
+- 快速创建已配置好 Alephant Gateway 的 LangChain / LlamaIndex LLM client。
+- 可选读取当前 Virtual Key 范围内的用量、成本、预算和模型分布等统计信息。
 
-Alephant Gateway and Collector remain the source of truth for cost, token usage, provider, model, cache behavior, and request logs. The Python SDK does not directly ingest logs and does not calculate billing facts.
+Alephant Gateway 和 Collector 仍然是成本、tokens、provider、model、缓存行为、请求日志的事实来源。Python SDK 不直接写 Collector，不在本地计算账单事实。
 
-## Non-Goals
+## 非目标
 
-- No direct POST to Collector `/v1/log/request`.
-- No local cost calculation.
-- No automatic `Collector-Step-Id`, `Collector-Parent-Step-Id`, or `Collector-Retry-Count` headers in v1.
-- No attempt to recreate LangChain or LlamaIndex internal span trees in Alephant.
-- No default behavior that changes routing, cache, prompt templating, or log omission unless explicitly configured by the user.
+- 不直接 POST 到 Collector `/v1/log/request`。
+- 不在 SDK 本地计算成本或账单。
+- v1 不自动生成 `Collector-Step-Id`、`Collector-Parent-Step-Id`、`Collector-Retry-Count`。
+- v1 不尝试把 LangChain / LlamaIndex 的内部 span tree 还原成 Alephant step tree。
+- 不默认改变网关行为，例如强制路由、缓存、prompt 模板合并、日志省略等。
+- 不用 SDK 绕过 Alephant Gateway 调用上游 provider。
 
-## Product Boundary
+## 产品边界
 
-Alephant is a cost attribution gateway product. A request has cost attribution value when it goes through Alephant Gateway with a virtual key.
+Alephant 是成本归因类网关产品。一次 AI 请求只有经过 Alephant Gateway，才具备完整的成本归因、会话归因、策略、缓存、日志和审计意义。
 
-Therefore, the SDK is a gateway convenience layer:
+SDK 的定位是 **Gateway convenience layer**：
 
 ```text
-Python app
-  -> Alephant Python SDK creates session/header/client config
-  -> LangChain/LlamaIndex LLM client calls Alephant Gateway
-  -> Gateway authenticates VK, applies routing/policy/cache, logs request
-  -> Collector stores request/cost/session data
-  -> Alephant UI/API queries sessions, requests, costs
+Python 应用
+  -> Alephant Python SDK 创建 session / headers / gateway client
+  -> LangChain 或 LlamaIndex 通过 SDK helper 调用 Alephant Gateway
+  -> Gateway 校验 Virtual Key，执行路由、策略、缓存、日志
+  -> Collector 落库请求、成本、tokens、session 数据
+  -> Alephant UI/API 查询 Sessions、Requests、Costs、Usage
 ```
 
-## Package Strategy
+## 包策略
 
-Use one distribution with optional extras:
+使用一个 Python distribution，通过 extras 控制可选框架依赖：
 
 ```bash
 pip install alephantai
@@ -51,9 +54,9 @@ pip install "alephantai[llamaindex]"
 pip install "alephantai[langchain,llamaindex]"
 ```
 
-The core package must import successfully without LangChain or LlamaIndex installed.
+核心包必须在没有安装 LangChain / LlamaIndex 的情况下正常 import。
 
-Proposed layout:
+建议目录：
 
 ```text
 python-sdk-alephant/
@@ -62,10 +65,12 @@ python-sdk-alephant/
   docs/
     design-langchain-llamaindex.md
     gateway-headers.md
+    analytics.md
     langchain.md
     llamaindex.md
   examples/
     openai_gateway_chat.py
+    gateway_analytics.py
     langchain_chat.py
     llamaindex_rag.py
   src/
@@ -75,6 +80,7 @@ python-sdk-alephant/
       context.py
       headers.py
       openai.py
+      analytics.py
       langchain/
         __init__.py
         callback.py
@@ -87,15 +93,16 @@ python-sdk-alephant/
     test_context_headers.py
     test_gateway_headers.py
     test_openai_gateway_client.py
+    test_analytics_client.py
     test_langchain_callback.py
     test_llamaindex_instrumentation.py
 ```
 
-## Core API
+## 核心 API
 
-### Gateway Context
+### AlephantGatewayContext
 
-`AlephantGatewayContext` owns the session and header configuration for a logical chat, agent run, or RAG query.
+`AlephantGatewayContext` 表示一次 chat、agent run、RAG query 或业务会话的网关上下文。
 
 ```python
 from alephantai import AlephantGatewayContext
@@ -106,13 +113,14 @@ ctx = AlephantGatewayContext(
 )
 ```
 
-If `session_id` is omitted, the SDK generates one. If it is provided, the SDK uses it exactly after validation.
+如果用户不传 `session_id`，SDK 自动生成一个稳定的 session id。  
+如果用户显式传入 `session_id`，SDK 校验后按原值使用。
 
 ```python
 ctx = AlephantGatewayContext(session_id="support-session-001")
 ```
 
-Default headers:
+默认输出：
 
 ```python
 ctx.headers()
@@ -121,7 +129,7 @@ ctx.headers()
 # }
 ```
 
-With optional session metadata:
+配置了会话元数据时：
 
 ```python
 {
@@ -131,9 +139,9 @@ With optional session metadata:
 }
 ```
 
-### Gateway Headers
+### GatewayHeaders
 
-`GatewayHeaders` models optional Alephant Gateway request headers. The SDK should provide typed configuration instead of requiring users to remember exact header names.
+`GatewayHeaders` 用类型化方式描述可选 Alephant Gateway header。
 
 ```python
 from alephantai import AlephantGatewayContext, GatewayHeaders, CacheHeaders
@@ -148,13 +156,13 @@ ctx = AlephantGatewayContext(
 )
 ```
 
-Header policy:
+Header 策略：
 
 ```text
-Automatically generated:
+SDK 自动生成：
 - Alephant-Session-Id
 
-Generated only when explicitly configured:
+用户显式配置才生成：
 - Alephant-Session-Name
 - Alephant-Session-Path
 - alephant-property-*
@@ -169,17 +177,17 @@ Generated only when explicitly configured:
 - x-alephant-posthog-host
 - x-alephant-lytix-key
 
-Not generated in v1:
+v1 不生成：
 - Collector-Step-Id
 - Collector-Parent-Step-Id
 - Collector-Retry-Count
 ```
 
-Behavior headers are explicit because they can change gateway routing, cache semantics, prompt merging, or logging behavior.
+行为类 header 必须显式配置，因为它们会改变网关行为，例如路由、缓存、prompt 合并或日志保存。
 
-### Properties
+### 自定义属性
 
-Custom properties are explicit:
+自定义属性也必须显式配置：
 
 ```python
 ctx = AlephantGatewayContext(
@@ -190,18 +198,18 @@ ctx = AlephantGatewayContext(
 )
 ```
 
-Output:
+输出：
 
 ```http
 alephant-property-framework: langchain
 alephant-property-app: support-agent
 ```
 
-The SDK must validate property keys and values. It should reject or omit unsafe values rather than sending sensitive or malformed data.
+SDK 必须校验 property key/value，避免把敏感值、非法字符或过长内容放入请求头。
 
 ## OpenAI-Compatible Gateway Helper
 
-Because Alephant Gateway is OpenAI-compatible for common `/v1/...` flows, provide a small helper to reduce setup friction:
+Alephant Gateway 支持常见 OpenAI-compatible `/v1/...` 调用，所以 SDK 应提供快速创建 Gateway client 的 helper。
 
 ```python
 from alephantai import AlephantGatewayContext
@@ -221,15 +229,66 @@ response = client.chat.completions.create(
 )
 ```
 
-This helper should configure the official OpenAI Python client with Alephant Gateway base URL, virtual key, and context headers.
+该 helper 配置官方 OpenAI Python client：
 
-It should not wrap every provider SDK in v1. Additional provider helpers can be added later if product usage proves demand.
+- `base_url` 指向 Alephant Gateway。
+- `api_key` 使用 Alephant Virtual Key。
+- 默认携带 `ctx.headers()`，包括自动生成的 `Alephant-Session-Id`。
 
-## LangChain Integration
+v1 不封装所有 provider SDK。后续是否增加 Anthropic、Gemini 等 helper，取决于实际用户需求。
 
-LangChain integration should focus on making a LangChain app use Alephant Gateway with the same session across calls.
+## 统计分析读取能力
 
-The primary LangChain developer experience should be a helper that creates a gateway-configured LangChain model:
+SDK 可以提供统计分析读取能力，但第一版应限制在 **Virtual Key / Cockpit 范围**，也就是适合终端开发者直接用自己的 `vk-...` 查询当前 key 相关数据。
+
+推荐新增 `AlephantAnalyticsClient`：
+
+```python
+from alephantai.analytics import AlephantAnalyticsClient
+
+analytics = AlephantAnalyticsClient(
+    api_key="vk-...",
+    base_url="https://api.alephant.ai/api/v1",
+)
+
+summary = analytics.usage_summary(period="billing_cycle")
+models = analytics.cost_by_model(period="7d")
+budget = analytics.budget_status()
+daily = analytics.daily_costs(period="30d")
+```
+
+对应后端已有 Cockpit 语义：
+
+- `GET /api/v1/cockpit/usage-summary`
+- `GET /api/v1/cockpit/budget-status`
+- `GET /api/v1/cockpit/cost-by-model`
+- `GET /api/v1/cockpit/daily-costs`
+- `GET /api/v1/cockpit/scope`
+- `GET /api/v1/cockpit/recent-requests`，如果后端仍标记 degraded，SDK 文档应如实说明。
+
+v1 不建议默认暴露完整工作区管理员 analytics，因为那通常需要 SaaS 用户身份、workspace 权限、`X-Workspace-Id`、以及更复杂的 RBAC。可以后续作为 `alephantai-saas-api` 或 admin extra 的能力。
+
+统计能力边界：
+
+```text
+v1 支持：
+- 当前 Virtual Key 的 usage summary
+- 当前 Virtual Key 的 budget status
+- 当前 Virtual Key 的 cost by model
+- 当前 Virtual Key 的 daily costs
+- 当前 Virtual Key 的 scope 信息
+
+v1 暂不支持：
+- 管理员级全 workspace analytics
+- 跨成员/部门/agent 的 SaaS 管理分析
+- 直接查询 Collector 私有 API
+```
+
+这样 SDK 既能帮助用户“发起网关请求”，也能帮助用户“看到这个 key 产生了什么成本和使用情况”。
+
+## LangChain 集成
+
+LangChain 集成的主要体验应是 helper：直接创建已配置好 Alephant Gateway 的 LangChain model。
 
 ```python
 from alephantai import AlephantGatewayContext
@@ -247,9 +306,14 @@ llm = create_chat_openai(
 llm.invoke("Hello")
 ```
 
-This keeps the quick path under the SDK's control: virtual key auth, gateway base URL, and `Alephant-Session-Id` are configured together.
+这条 quick path 应由 SDK 完成：
 
-For users who already construct their own LangChain models, expose the callback and raw headers:
+- Virtual Key 认证配置。
+- Gateway `base_url` 配置。
+- `Alephant-Session-Id` 注入。
+- 可选 gateway headers 注入。
+
+高级用户如果已经自己创建 LangChain model，也可以直接使用 headers 或 callback：
 
 ```python
 from alephantai import AlephantGatewayContext
@@ -258,8 +322,6 @@ from alephantai.langchain import AlephantCallbackHandler
 ctx = AlephantGatewayContext(session_name="langchain-chat")
 handler = AlephantCallbackHandler(context=ctx)
 ```
-
-Usage with an OpenAI-compatible LangChain model:
 
 ```python
 from langchain_openai import ChatOpenAI
@@ -276,19 +338,19 @@ llm.invoke(
 )
 ```
 
-Responsibilities:
+职责：
 
-- Provide helper factories for common OpenAI-compatible LangChain models.
-- Keep the same `Alephant-Session-Id` for a chain, agent, or chat run.
-- Provide a convenient callback object for LangChain users.
-- Avoid throwing exceptions from callback methods by default.
-- Avoid generating step or parent-step headers in v1.
+- 提供常见 OpenAI-compatible LangChain model helper。
+- 确保同一次 chain、agent 或 chat 使用同一个 `Alephant-Session-Id`。
+- 提供 callback 给已有 LangChain 工程使用。
+- callback 默认不抛异常，不能影响用户 chain 执行。
+- v1 不生成 step / parent-step header。
 
-The callback may record lightweight local run metadata for debugging, but it must not send it to Alephant unless a stable gateway/backend contract exists. The callback is secondary; gateway-configured model helpers are the main convenience path.
+Callback 可以记录轻量本地调试信息，但在没有稳定网关/后端契约之前，不主动上报到 Alephant。
 
-## LlamaIndex Integration
+## LlamaIndex 集成
 
-LlamaIndex integration should follow the same gateway-session model. The primary path should configure LlamaIndex LLMs and embeddings to use Alephant Gateway.
+LlamaIndex 集成同样以 Gateway helper 为主，让 LlamaIndex 的 LLM / embedding model 调用 Alephant Gateway。
 
 ```python
 from alephantai import AlephantGatewayContext
@@ -304,7 +366,20 @@ llm = create_openai_llm(
 )
 ```
 
-Instrumentation remains available when users want to bind a broader query lifecycle to the same context:
+后续也可以提供 embedding helper：
+
+```python
+from alephantai.llamaindex import create_openai_embedding
+
+embed_model = create_openai_embedding(
+    api_key="vk-...",
+    base_url="https://gateway.alephant.ai/v1",
+    context=ctx,
+    model="text-embedding-3-small",
+)
+```
+
+Instrumentation 作为进阶能力，用于把更大的 query 生命周期绑定到同一个 context：
 
 ```python
 from alephantai import AlephantGatewayContext
@@ -315,109 +390,118 @@ handler = AlephantLlamaIndexHandler(context=ctx)
 handler.install()
 ```
 
-The LlamaIndex LLM and embedding models must still be configured to call Alephant Gateway and include `ctx.headers()`. The helper should do this automatically for OpenAI-compatible LlamaIndex integrations.
+职责：
 
-Responsibilities:
+- 提供常见 OpenAI-compatible LlamaIndex LLM / embedding helper。
+- 确保 LlamaIndex 的 LLM/embedding 请求进入同一个 Alephant session。
+- 优先使用 LlamaIndex 当前 instrumentation 机制。
+- instrumentation API 变化时不能破坏用户 query 执行。
+- 不直接写日志、不本地计算成本。
 
-- Provide helper factories for common OpenAI-compatible LlamaIndex LLM and embedding models.
-- Keep all LlamaIndex LLM/embedding requests in the same Alephant session.
-- Use LlamaIndex instrumentation when available.
-- Avoid breaking query execution if instrumentation APIs change.
-- Avoid direct log ingestion and local cost calculation.
+## 后端对齐
 
-## Backend Alignment
+当前后端/Collector 相关事实：
 
-Current backend and collector behavior:
+- Gateway 请求需要携带 `Alephant-Session-Id` 才能归到对应 session。
+- Collector 已有 `request_response_rmt.session_id` 列。
+- Sessions analytics 基于 `request_response_rmt.session_id` 聚合。
+- ClickHouse 已存在 step 相关列，但 SDK v1 不发送 step header。
 
-- Gateway expects `Alephant-Session-Id` on incoming requests for session attribution.
-- Collector has an RMT `session_id` column.
-- Sessions analytics queries group by `request_response_rmt.session_id`.
-- Step columns exist in ClickHouse migrations, but current SDK v1 does not emit step headers.
+关键要求：
 
-Backend-sensitive requirement:
+用户通过 SDK 发起的 LLM/embedding 请求必须走 Alephant Gateway。  
+如果用户绕过 Gateway 直接调 provider，Alephant 无法可靠提供成本归因和会话归因。
 
-Requests made via the SDK must go through Alephant Gateway. If users call providers directly, Alephant cannot reliably attribute gateway cost or session behavior.
+## 校验与安全
 
-## Validation and Safety
+SDK 应校验自动生成和用户传入的 header：
 
-The SDK should validate generated and user-provided headers:
+- `session_id`：非空字符串，最大 128 字符。
+- `session_name`：可选，最大 128 字符。
+- `session_path`：可选，最大 256 字符；提供时规范化为 `/` 开头。
+- property key：建议小写安全 header suffix，最大 64 字符，不允许空白字符。
+- property value：转为字符串，最大 512 字符。
+- cache bucket max size：整数 `1..20`。
+- boolean header：序列化为 `"true"` / `"false"`。
 
-- `session_id`: non-empty string, max length 128.
-- `session_name`: optional, max length 128.
-- `session_path`: optional, max length 256, normalized to start with `/` when provided.
-- property keys: lowercase-safe header suffix preferred, max length 64, no whitespace.
-- property values: stringified, max length 512.
-- cache bucket max size: integer `1..20`.
-- booleans serialized as `"true"` / `"false"`.
+SDK 默认不生成敏感 header。只有在 helper 明确创建 provider client 时，才使用用户传入的 Virtual Key 配置认证。
 
-Sensitive headers and values should not be generated by default. The SDK must not set `Authorization` unless a helper explicitly creates a provider client with the user-provided virtual key.
+## 错误处理
 
-## Error Handling
+默认行为应尽量不打断用户主流程：
 
-Default behavior should be non-disruptive:
+- 显式用户输入非法时，在 context/client 构造阶段抛出清晰异常。
+- framework callback 内部异常默认吞掉并写 debug logger。
+- `strict=True` 时才抛出 callback 异常，方便测试和调试。
+- 未安装可选依赖时，只在 import 对应 integration 时提示明确错误。
 
-- Header validation errors should raise at context construction time for explicit user input.
-- Framework callback errors should be swallowed and logged at debug level by default.
-- `strict=True` should raise callback errors for tests and advanced debugging.
-- Missing optional framework dependencies should produce clear import errors only when those integrations are imported.
+## 测试
 
-## Tests
+核心测试：
 
-Core tests:
+- 不传 `session_id` 时自动生成稳定 session id。
+- 传入 `session_id` 时按原值使用。
+- 默认 headers 只包含 `Alephant-Session-Id`。
+- `Session-Name` / `Session-Path` 只有配置后输出。
+- 行为类 header 只有显式配置后输出。
+- properties 只有显式配置后输出为 `alephant-property-*`。
+- 非法 header 值按契约拒绝或省略。
 
-- Auto-generates a stable session id per context.
-- Uses user-provided `session_id` unchanged after validation.
-- Default headers only contain `Alephant-Session-Id`.
-- Session name/path are only emitted when configured.
-- Behavior headers are only emitted when configured.
-- Properties are emitted as `alephant-property-*` only when configured.
-- Invalid values are rejected or omitted according to the API contract.
+OpenAI Gateway helper 测试：
 
-OpenAI helper tests:
+- 使用配置的 `base_url`。
+- 使用用户传入的 Virtual Key。
+- 注入 `Alephant-Session-Id`。
+- 不意外修改 context。
 
-- Builds a client with the configured `base_url`.
-- Injects `Alephant-Session-Id`.
-- Does not mutate a context across requests unexpectedly.
+Analytics client 测试：
 
-LangChain tests:
+- 调用 cockpit usage summary 时携带 `Authorization: Bearer vk-...`。
+- 支持 `period` 参数。
+- 对后端 degraded response 保留原始信号，不假装成功。
+- 不需要 LangChain/LlamaIndex 依赖。
 
-- Core package imports without LangChain installed.
-- LangChain integration imports when the extra is installed.
-- `create_chat_openai` builds a model configured with gateway `base_url`, virtual key auth, and context headers.
-- Callback methods do not raise in default mode.
-- Callback uses the provided context and does not create unrelated sessions.
+LangChain 测试：
 
-LlamaIndex tests:
+- 未安装 LangChain 时 core package 可正常 import。
+- 安装 extra 后 integration 可 import。
+- `create_chat_openai` 创建的 model 包含 gateway `base_url`、Virtual Key auth、context headers。
+- callback 默认不抛异常。
+- callback 复用传入的 context，不创建无关 session。
 
-- Core package imports without LlamaIndex installed.
-- LlamaIndex integration imports when the extra is installed.
-- LlamaIndex OpenAI helper builds an LLM/embedding client configured with gateway `base_url`, virtual key auth, and context headers.
-- Handler install/uninstall is idempotent when possible.
-- Handler uses the provided context and does not create unrelated sessions.
+LlamaIndex 测试：
 
-## Documentation
+- 未安装 LlamaIndex 时 core package 可正常 import。
+- 安装 extra 后 integration 可 import。
+- OpenAI LLM / embedding helper 包含 gateway `base_url`、Virtual Key auth、context headers。
+- handler install/uninstall 尽量幂等。
+- handler 复用传入的 context，不创建无关 session。
 
-Required docs:
+## 文档
 
-- `README.md`: quickstart with OpenAI-compatible gateway helper.
-- `docs/gateway-headers.md`: authoritative SDK header behavior.
-- `docs/langchain.md`: LangChain setup with Alephant Gateway.
-- `docs/llamaindex.md`: LlamaIndex setup with Alephant Gateway.
+需要补充：
 
-Docs must clearly state:
+- `README.md`：OpenAI-compatible Gateway quickstart。
+- `docs/gateway-headers.md`：SDK header 行为说明。
+- `docs/analytics.md`：Virtual Key / Cockpit 统计查询说明。
+- `docs/langchain.md`：LangChain + Alephant Gateway 配置。
+- `docs/llamaindex.md`：LlamaIndex + Alephant Gateway 配置。
 
-- The LLM client must call Alephant Gateway.
-- The SDK auto-generates `Alephant-Session-Id`.
-- Users can manually specify or override `session_id`.
-- Behavior-changing gateway headers require explicit configuration.
-- v1 does not emit Collector step headers.
+文档必须明确：
 
-## MVP Acceptance Criteria
+- LLM/embedding 请求必须经过 Alephant Gateway。
+- SDK 自动生成 `Alephant-Session-Id`。
+- 用户可以手动指定或覆盖 `session_id`。
+- 行为类 Gateway header 必须显式配置。
+- v1 不生成 Collector step headers。
+- v1 统计分析读取聚焦 Virtual Key / Cockpit 范围。
 
-- A Python developer can create an Alephant gateway session in under five lines.
-- A Python developer can create an OpenAI-compatible client pointed at Alephant Gateway with virtual key auth and session headers.
-- A LangChain developer can create a gateway-configured `ChatOpenAI` model without manually building headers.
-- A LlamaIndex developer can create a gateway-configured OpenAI-compatible LLM/embedding model without manually building headers.
-- LangChain and LlamaIndex examples show how to reuse the same session context.
-- Default SDK behavior only affects session attribution.
-- No SDK path bypasses Alephant Gateway for cost attribution.
+## MVP 验收标准
+
+- Python 开发者可以在 5 行以内创建 Alephant Gateway session。
+- Python 开发者可以快速创建指向 Alephant Gateway 的 OpenAI-compatible client。
+- Python 开发者可以用 SDK 查询当前 Virtual Key 的 usage/cost/budget/model 分布。
+- LangChain 开发者可以不用手写 headers 创建 Gateway-configured `ChatOpenAI`。
+- LlamaIndex 开发者可以不用手写 headers 创建 Gateway-configured OpenAI LLM / embedding model。
+- 默认 SDK 行为只影响 session 归因，不改变路由、缓存、prompt、日志省略等行为。
+- 没有任何 SDK 路径绕过 Alephant Gateway 来做成本归因。
