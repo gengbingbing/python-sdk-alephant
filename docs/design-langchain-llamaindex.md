@@ -55,6 +55,7 @@ pip install "alephantai[langchain,llamaindex]"
 ```
 
 核心包必须在没有安装 LangChain / LlamaIndex 的情况下正常 import。
+v1 建议支持 Python 3.10+，以匹配当前 LangChain / LlamaIndex split packages 的实际 Python 版本要求。
 
 建议目录：
 
@@ -150,7 +151,6 @@ ctx = AlephantGatewayContext(
         forced_routing="openai",
         prompt_id="prompt_123",
         cache=CacheHeaders(enabled=True, read=True, save=True),
-        log_model_override="gpt-4o-mini",
     )
 )
 ```
@@ -165,16 +165,17 @@ SDK 自动生成：
 - Alephant-Session-Name
 - Alephant-Session-Path
 - alephant-property-*
-- Alephant-Cache-*
+- Alephant-Cache-Enabled
+- Alephant-Cache-Read
+- Alephant-Cache-Save
+- Alephant-Cache-Bucket-Max-Size
+- Alephant-Cache-Seed
+- Alephant-Cache-Control
 - alephant-forced-routing
 - alephant-prompt-id
-- x-alephant-model-override（日志元数据，不改变真实请求模型）
 - alephant-omit-request
 - alephant-omit-response
 - x-alephant-webhook-enabled
-- x-alephant-posthog-api-key
-- x-alephant-posthog-host
-- x-alephant-lytix-key
 
 v1 不生成：
 - Collector-Step-Id
@@ -187,7 +188,9 @@ v1 不生成：
 HTTP header 名大小写不敏感。SDK 对会话头使用 `Alephant-Session-Id` / `Alephant-Session-Name` /
 `Alephant-Session-Path` 作为文档和示例里的规范写法；网关侧也应继续接受小写形式。
 
-`x-alephant-webhook-enabled` 是 presence-based header，只有用户显式启用时才发送；不发送 `false`。`x-alephant-model-override` 当前只进入日志元数据，不代表网关会改写实际 model 参数。
+`x-alephant-webhook-enabled` 是 presence-based header，只有用户显式启用时才发送；不发送 `false`。
+
+SDK v1 不暴露 `x-alephant-model-override`、`x-alephant-posthog-api-key`、`x-alephant-posthog-host`、`x-alephant-lytix-key` 等日志/观测配置头；这些应在服务端或 workspace 配置中管理，避免在客户端代码、代理或日志中泄漏。
 
 ### 自定义属性
 
@@ -209,7 +212,7 @@ alephant-property-framework: langchain
 alephant-property-app: support-agent
 ```
 
-SDK 必须校验 property key/value，避免把敏感值、非法字符或过长内容放入请求头。
+SDK 必须校验 property key/value，避免把敏感值、非法字符或过长内容放入请求头。Property key 必须匹配 `^[a-z0-9][a-z0-9_-]{0,63}$`，并拒绝 `token`、`secret`、`password`、`api_key` 等敏感命名。
 
 ## OpenAI-Compatible Gateway Helper
 
@@ -408,6 +411,7 @@ Instrumentation 暂不进入 v1。第一版只通过 LLM / embedding helper 把 
 当前后端/Collector 相关事实：
 
 - Gateway 请求需要携带 `Alephant-Session-Id` 才能归到对应 session。
+- Gateway 必须把 `alephant-session-id` 映射到 Collector payload 的 `log.request.sessionId`，不能只写入 properties；SDK v1 依赖这个后端契约完成 session 归因。
 - Collector 已有 `request_response_rmt.session_id` 列。
 - Sessions analytics 基于 `request_response_rmt.session_id` 聚合。
 - ClickHouse 已存在 step 相关列，但 SDK v1 不发送 step header。
