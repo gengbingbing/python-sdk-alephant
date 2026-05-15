@@ -5,6 +5,7 @@ import pytest
 
 from alephantai import AlephantGatewayContext
 from alephantai.llamaindex import create_openai_embedding, create_openai_llm
+from alephantai.openai import DEFAULT_GATEWAY_USER_AGENT
 
 
 def test_create_openai_llm_passes_gateway_config(monkeypatch):
@@ -38,6 +39,7 @@ def test_create_openai_llm_passes_gateway_config(monkeypatch):
     assert seen["default_headers"]["x-user-header"] == "1"
     assert "alephant-session-id" not in seen["default_headers"]
     assert seen["default_headers"]["Alephant-Session-Id"] == "sess-llama"
+    assert seen["default_headers"]["User-Agent"] == DEFAULT_GATEWAY_USER_AGENT
 
 
 def test_create_openai_embedding_passes_gateway_config(monkeypatch):
@@ -71,6 +73,7 @@ def test_create_openai_embedding_passes_gateway_config(monkeypatch):
     assert seen["default_headers"]["x-user-header"] == "1"
     assert "alephant-session-id" not in seen["default_headers"]
     assert seen["default_headers"]["Alephant-Session-Id"] == "sess-llama"
+    assert seen["default_headers"]["User-Agent"] == DEFAULT_GATEWAY_USER_AGENT
 
 
 def test_create_openai_llm_reports_missing_extra(monkeypatch):

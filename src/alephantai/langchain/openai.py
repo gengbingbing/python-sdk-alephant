@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from alephantai.context import AlephantGatewayContext
-from alephantai.openai import DEFAULT_GATEWAY_BASE_URL, merge_default_headers
+from alephantai.openai import DEFAULT_GATEWAY_BASE_URL, gateway_default_headers
 
 
 def create_chat_openai(
@@ -21,7 +21,7 @@ def create_chat_openai(
         ) from exc
 
     ctx = context or AlephantGatewayContext()
-    default_headers = merge_default_headers(
+    default_headers = gateway_default_headers(
         kwargs.pop("default_headers", None),
         ctx.headers(),
     )

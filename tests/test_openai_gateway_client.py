@@ -1,5 +1,9 @@
 from alephantai import AlephantGatewayContext
-from alephantai.openai import create_openai_client, merge_default_headers
+from alephantai.openai import (
+    DEFAULT_GATEWAY_USER_AGENT,
+    create_openai_client,
+    merge_default_headers,
+)
 
 
 def test_create_openai_client_configures_gateway_and_session_headers():
@@ -14,6 +18,7 @@ def test_create_openai_client_configures_gateway_and_session_headers():
     assert str(client.base_url) == "https://gateway.example.test/v1/"
     assert client.api_key == "vk-test"
     assert client.default_headers["Alephant-Session-Id"] == "sess-test"
+    assert client.default_headers["User-Agent"] == DEFAULT_GATEWAY_USER_AGENT
 
 
 def test_create_openai_client_accepts_positional_api_key():
@@ -50,6 +55,17 @@ def test_create_openai_client_merges_user_default_headers():
     assert client.default_headers["x-user-header"] == "1"
     assert "alephant-session-id" not in client.default_headers
     assert client.default_headers["Alephant-Session-Id"] == "sess-test"
+    assert client.default_headers["User-Agent"] == DEFAULT_GATEWAY_USER_AGENT
+
+
+def test_create_openai_client_preserves_explicit_user_agent():
+    client = create_openai_client(
+        "vk-test",
+        default_headers={"user-agent": "custom-client/1.0"},
+    )
+
+    assert "user-agent" not in client.default_headers
+    assert client.default_headers["User-Agent"] == "custom-client/1.0"
 
 
 def test_merge_default_headers_preserves_user_headers():

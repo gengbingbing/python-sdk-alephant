@@ -5,6 +5,7 @@ import pytest
 
 from alephantai import AlephantGatewayContext
 from alephantai.langchain import AlephantCallbackHandler, create_chat_openai
+from alephantai.openai import DEFAULT_GATEWAY_USER_AGENT
 
 
 def test_langchain_callback_reuses_context_headers():
@@ -48,6 +49,7 @@ def test_create_chat_openai_passes_gateway_config_to_langchain(monkeypatch):
     assert seen["default_headers"]["x-user-header"] == "1"
     assert "alephant-session-id" not in seen["default_headers"]
     assert seen["default_headers"]["Alephant-Session-Id"] == "sess-langchain"
+    assert seen["default_headers"]["User-Agent"] == DEFAULT_GATEWAY_USER_AGENT
 
 
 def test_create_chat_openai_accepts_positional_api_key_and_model(monkeypatch):
