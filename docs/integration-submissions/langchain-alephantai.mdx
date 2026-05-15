@@ -1,0 +1,98 @@
+---
+title: Alephant AI
+sidebar_label: Alephant AI
+---
+
+# Alephant AI
+
+Alephant AI provides an OpenAI-compatible gateway for routing model requests,
+attaching session metadata, and attributing usage and cost analytics.
+
+The `alephantai` Python package includes a LangChain helper that returns a
+standard `ChatOpenAI` instance configured to send requests through Alephant
+Gateway with Alephant session headers.
+
+## Installation
+
+```bash
+pip install "alephantai[langchain]"
+```
+
+## Credentials
+
+Create an Alephant Virtual Key in Alephant Cockpit and use it as the API key.
+The production gateway base URL is `https://ai.alephant.io/v1`.
+
+```bash
+export ALEPHANT_API_KEY="vk-..."
+```
+
+## Chat model
+
+```python
+import os
+
+from alephantai import AlephantGatewayContext
+from alephantai.langchain import create_chat_openai
+
+ctx = AlephantGatewayContext(session_name="langchain-chat")
+
+llm = create_chat_openai(
+    api_key=os.environ["ALEPHANT_API_KEY"],
+    model="gpt-4o-mini",
+    context=ctx,
+)
+
+response = llm.invoke("Write a one-line product tagline for observability.")
+print(response.content)
+```
+
+`create_chat_openai` accepts additional keyword arguments supported by
+`langchain_openai.ChatOpenAI`, such as `temperature`, `timeout`, and
+`max_retries`.
+
+```python
+llm = create_chat_openai(
+    api_key=os.environ["ALEPHANT_API_KEY"],
+    model="gpt-4o-mini",
+    context=ctx,
+    temperature=0,
+    timeout=30,
+)
+```
+
+## Session attribution
+
+Alephant session metadata is attached through gateway request headers. The SDK
+generates an `Alephant-Session-Id` by default and can include an explicit
+session name for analytics grouping.
+
+```python
+from alephantai import AlephantGatewayContext
+
+ctx = AlephantGatewayContext(session_name="customer-support-eval")
+```
+
+Version 1 of the SDK guarantees session-level request and cost attribution. It
+does not convert LangChain's internal run tree into Alephant journey steps.
+
+## Custom gateway URL
+
+Use `base_url` when testing against a staging gateway.
+
+```python
+llm = create_chat_openai(
+    api_key=os.environ["ALEPHANT_API_KEY"],
+    model="gpt-4o-mini",
+    context=ctx,
+    base_url="https://ai.alephant.io/v1",
+)
+```
+
+## API reference
+
+- PyPI: `alephantai`
+- Import: `from alephantai.langchain import create_chat_openai`
+- Gateway helper: `alephantai.AlephantGatewayContext`
+- Default production base URL: `https://ai.alephant.io/v1`
+
