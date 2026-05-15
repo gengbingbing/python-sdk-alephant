@@ -9,9 +9,10 @@ do not mix that host with Cockpit API routes.
 Real-time usage, daily costs, cost by model, and budget spent are scoped by the
 Virtual Key. If the key is bound to an agent or member, `cost_by_model()` uses
 that entity scope; otherwise it falls back to the workspace scope. Call
-`scope()` first to inspect the current key's workspace and optional entity. SDK
-v1 guarantees session-level request and cost attribution only; full journey
-steps, policy events, and grading require a future step/span contract.
+`scope()` first to inspect the current key's workspace and optional entity. The
+current Cockpit API surfaces request and aggregate usage metrics; it does not
+currently expose session-level query APIs. Full journey steps, policy events,
+and grading require a future step/span contract.
 
 Supported methods:
 

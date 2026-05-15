@@ -114,8 +114,9 @@ embed_model = create_openai_embedding(
 ## Session attribution
 
 The SDK attaches Alephant gateway headers to LlamaIndex LLM and embedding
-requests. Version 1 guarantees session-level request and cost attribution. It
-does not map LlamaIndex internal events into complete Alephant journey steps.
+requests. Version 1 exposes request and aggregate usage metrics through Cockpit
+APIs. It does not expose session-level query APIs or map LlamaIndex internal
+events into complete Alephant journey steps.
 ```
 
 ## PR description draft
@@ -139,6 +140,7 @@ small and avoids duplicating Alephant-specific transport logic.
 
 ## Notes
 
-SDK v1 provides session-level request and cost attribution. It does not map the
+SDK v1 attaches session headers and exposes request and aggregate usage metrics
+through Cockpit APIs. It does not provide session-level query APIs or map the
 full LlamaIndex event tree into Alephant journey steps.
 ````

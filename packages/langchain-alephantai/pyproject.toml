@@ -19,7 +19,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6", "build>=1.2", "twine>=5"]
+dev = [
+  "build>=1.2",
+  "langchain-tests>=1.1,<2",
+  "pytest>=8",
+  "ruff>=0.6",
+  "twine>=5",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/langchain_alephantai"]
@@ -30,6 +36,9 @@ path = "src/langchain_alephantai/__init__.py"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "../alephantai/src"]
+markers = [
+  "integration: live Alephant Gateway tests that require ALEPHANT_API_KEY",
+]
 
 [tool.ruff]
 line-length = 100

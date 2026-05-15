@@ -17,7 +17,7 @@ Settings.embed_model = embed_model
 
 documents = [
     Document(text="Alephant Gateway routes OpenAI-compatible LLM calls and tracks session cost."),
-    Document(text="Alephant Python SDK injects Alephant-Session-Id for session-level attribution."),
+    Document(text="Alephant Python SDK injects Alephant-Session-Id for gateway requests."),
 ]
 index = VectorStoreIndex.from_documents(documents)
 query_engine = index.as_query_engine()

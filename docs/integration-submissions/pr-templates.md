@@ -13,29 +13,31 @@ Body:
 ````markdown
 ## Summary
 
-Adds documentation for the published `alephantai` Python package, which provides
-a LangChain helper for routing `ChatOpenAI` requests through Alephant Gateway.
+Adds documentation for the published `langchain-alephantai` Python package,
+which provides `ChatAlephantAI` for routing LangChain chat model requests
+through Alephant Gateway.
 
 ## Package
 
-- PyPI: https://pypi.org/project/alephantai/
-- Install: `pip install "alephantai[langchain]"`
-- Import: `from alephantai.langchain import create_chat_openai`
+- PyPI: https://pypi.org/project/langchain-alephantai/
+- Install: `pip install langchain-alephantai`
+- Import: `from langchain_alephantai import ChatAlephantAI`
 
 ## Validation
 
 - The package is published on PyPI.
-- The example uses the public SDK API.
-- The integration returns a standard `langchain_openai.ChatOpenAI` instance.
+- The example uses the public provider package API.
+- `pytest packages/langchain-alephantai/tests -q` passes with LangChain standard
+  unit tests.
+- Live standard integration tests are available with `ALEPHANT_API_KEY`.
 ````
 
 Reviewer notes:
 
 ```markdown
-Alephant AI is submitted as a chat model gateway integration. The SDK also
-contains a lightweight callback handler, but this page intentionally focuses on
-the chat model helper because LangChain's current integration guidance does not
-prioritize callback-only integrations.
+Alephant AI is submitted as a chat model gateway integration. The provider
+package depends on the core `alephantai` SDK for gateway context and header
+generation, and exposes `ChatAlephantAI` as the LangChain-facing API.
 ```
 
 ## LlamaIndex integration PR
@@ -54,7 +56,7 @@ Body:
 Adds Alephant AI as a LlamaIndex integration for OpenAI-compatible LLM requests
 through Alephant Gateway.
 
-Alephant Gateway supports model routing, session metadata, and request/cost
+Alephant Gateway supports model routing, session headers, and request/cost
 analytics. This package depends on the published `alephantai` SDK for gateway
 context and header generation.
 
@@ -83,7 +85,8 @@ llm = create_openai_llm(
 
 ## Scope
 
-SDK v1 provides session-level request and cost attribution. It does not map the
+SDK v1 attaches session headers and exposes request and aggregate usage metrics
+through Cockpit APIs. It does not provide session-level query APIs or map the
 full LlamaIndex event tree into Alephant journey steps.
 ````
 
@@ -126,7 +129,8 @@ Does this provide tracing for all LangChain or LlamaIndex internal spans?
 Answer:
 
 ````markdown
-Not in SDK v1. The current release guarantees session-level request and cost
-attribution. Full framework span or journey mapping requires a future step/span
-contract and is not claimed in this submission.
+Not in SDK v1. The current release attaches session headers and exposes request
+and aggregate usage metrics through Cockpit APIs. Full framework span or journey
+mapping requires a future step/span contract and is not claimed in this
+submission.
 ````

@@ -70,3 +70,28 @@ jobs:
           assert type(llm).__name__ == "OpenAI"
           assert type(embedding).__name__ == "OpenAIEmbedding"
           PY
+
+  langchain-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package with standard test dependencies
+        run: python -m pip install -e "packages/alephantai" -e "packages/langchain-alephantai[dev]"
+      - name: Run LangChain package tests
+        run: pytest packages/langchain-alephantai/tests -m "not integration" -v
+      - name: Smoke ChatAlephantAI constructor
+        run: |
+          python - <<'PY'
+          from langchain_alephantai import ChatAlephantAI
+
+          llm = ChatAlephantAI(
+              api_key="vk-test",
+              model="gpt-4o-mini",
+              session_id="sess-ci",
+          )
+          assert type(llm).__name__ == "ChatAlephantAI"
+          assert llm.default_headers["Alephant-Session-Id"] == "sess-ci"
+          PY

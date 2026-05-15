@@ -6,11 +6,11 @@ sidebar_label: Alephant AI
 # Alephant AI
 
 Alephant AI provides an OpenAI-compatible gateway for routing model requests,
-attaching session metadata, and attributing usage and cost analytics.
+attaching session headers, and surfacing request and usage analytics.
 
-The `langchain-alephantai` Python package includes a LangChain helper that
-returns a standard `ChatOpenAI` instance configured to send requests through
-Alephant Gateway with Alephant session headers.
+The `langchain-alephantai` Python package includes a `ChatAlephantAI` chat
+model configured to send requests through Alephant Gateway with Alephant session
+headers.
 
 ## Installation
 
@@ -32,40 +32,37 @@ export ALEPHANT_API_KEY="vk-..."
 ```python
 import os
 
-from alephantai import AlephantGatewayContext
-from langchain_alephantai import create_chat_openai
+from langchain_alephantai import ChatAlephantAI
 
-ctx = AlephantGatewayContext(session_name="langchain-chat")
-
-llm = create_chat_openai(
+llm = ChatAlephantAI(
     api_key=os.environ["ALEPHANT_API_KEY"],
     model="gpt-4o-mini",
-    context=ctx,
+    session_name="langchain-chat",
 )
 
 response = llm.invoke("Write a one-line product tagline for observability.")
 print(response.content)
 ```
 
-`create_chat_openai` accepts additional keyword arguments supported by
+`ChatAlephantAI` accepts additional keyword arguments supported by
 `langchain_openai.ChatOpenAI`, such as `temperature`, `timeout`, and
 `max_retries`.
 
 ```python
-llm = create_chat_openai(
+llm = ChatAlephantAI(
     api_key=os.environ["ALEPHANT_API_KEY"],
     model="gpt-4o-mini",
-    context=ctx,
+    session_name="langchain-chat",
     temperature=0,
     timeout=30,
 )
 ```
 
-## Session attribution
+## Session headers
 
-Alephant session metadata is attached through gateway request headers. The SDK
-generates an `Alephant-Session-Id` by default and can include an explicit
-session name for analytics grouping.
+Alephant session metadata is attached through gateway request headers. The
+package generates an `Alephant-Session-Id` by default and can include an
+explicit session name.
 
 ```python
 from alephantai import AlephantGatewayContext
@@ -73,18 +70,19 @@ from alephantai import AlephantGatewayContext
 ctx = AlephantGatewayContext(session_name="customer-support-eval")
 ```
 
-Version 1 of the SDK guarantees session-level request and cost attribution. It
-does not convert LangChain's internal run tree into Alephant journey steps.
+The current Cockpit API surfaces request and aggregate usage metrics, including
+model, provider, status, latency, tokens, and cost. It does not currently expose
+session-level query APIs.
 
 ## Custom gateway URL
 
 Use `base_url` when testing against a staging gateway.
 
 ```python
-llm = create_chat_openai(
+llm = ChatAlephantAI(
     api_key=os.environ["ALEPHANT_API_KEY"],
     model="gpt-4o-mini",
-    context=ctx,
+    session_name="langchain-chat",
     base_url="https://ai.alephant.io/v1",
 )
 ```
@@ -92,6 +90,6 @@ llm = create_chat_openai(
 ## API reference
 
 - PyPI: `langchain-alephantai`
-- Import: `from langchain_alephantai import create_chat_openai`
+- Import: `from langchain_alephantai import ChatAlephantAI`
 - Gateway helper: `alephantai.AlephantGatewayContext`
 - Default production base URL: `https://ai.alephant.io/v1`

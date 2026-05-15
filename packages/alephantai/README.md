@@ -30,9 +30,8 @@ response = client.chat.completions.create(
 
 By default, the SDK only generates `Alephant-Session-Id`. Behavior headers such
 as cache controls, forced routing, and prompt template identifiers must be
-configured explicitly. Version 1 guarantees session-level request and cost
-attribution only; full journey steps, policy events, and grading require a
-future step/span contract.
+configured explicitly. Current Cockpit analytics surfaces request and aggregate
+usage metrics; it does not expose session-level query APIs.
 
 ## Analytics
 

@@ -2,13 +2,13 @@
 
 ## One-line description
 
-Alephant AI is an OpenAI-compatible gateway for model routing, session metadata,
-and request-level usage and cost attribution.
+Alephant AI is an OpenAI-compatible gateway for model routing, session headers,
+and request-level usage and cost analytics.
 
 ## Short description
 
 Alephant AI helps teams route LLM traffic through a central gateway while adding
-session headers for analytics. The Python packages support direct
+session headers. The Python packages support direct
 OpenAI-compatible requests plus helper integrations for LangChain and
 LlamaIndex.
 
@@ -48,7 +48,7 @@ langchain
 llamaindex
 usage analytics
 cost analytics
-session attribution
+session headers
 model routing
 ```
 
@@ -60,6 +60,7 @@ request semantics.
 
 ## Current SDK scope
 
-SDK v1 guarantees session-level request and cost attribution through Alephant
-gateway headers. Full journey steps, policy events, and grading require a future
-step/span contract and should not be claimed in integration submissions.
+SDK v1 attaches session headers and exposes request and aggregate usage metrics
+through Cockpit APIs. It does not currently provide session-level query APIs.
+Full journey steps, policy events, and grading require a future step/span
+contract and should not be claimed in integration submissions.

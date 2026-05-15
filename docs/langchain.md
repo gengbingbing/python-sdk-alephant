@@ -11,6 +11,6 @@ llm.invoke("Hello")
 ```
 
 This helper sends requests through Alephant Gateway and includes
-`Alephant-Session-Id`. SDK v1 guarantees session-level request and cost
-attribution only; it does not map LangChain's internal span tree into complete
-journey steps.
+`Alephant-Session-Id`. Current Cockpit analytics surfaces request and aggregate
+usage metrics; it does not expose session-level query APIs or map LangChain's
+internal span tree into complete journey steps.
