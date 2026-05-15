@@ -1391,7 +1391,7 @@ Create `docs/analytics.md`:
 - `recent_requests(limit=20, offset=0)`
 - `health()`
 
-`usage_summary()`、`budget_status()`、`cost_by_model()` 和 `daily_costs()` 返回后端 `data` payload；`scope()` 有 `data` 时返回 `data`，没有 `data` 时返回后端顶层 JSON；`recent_requests()` 和 `health()` 返回后端顶层 JSON。调用方需要检查 `degraded` / `data_source`，并按后端字段单位处理 `cost_cents`、`spent_cents` 等金额字段。`recent_requests()` 当前可能返回 `degraded=true` 的空列表。v1 不提供管理员级 workspace analytics。
+`usage_summary()`、`budget_status()`、`cost_by_model()` 和 `daily_costs()` 返回后端 `data` payload；`scope()` 有 `data` 时返回 `data`，没有 `data` 时返回后端顶层 JSON；`recent_requests()` 和 `health()` 返回后端顶层 JSON。调用方需要检查 `degraded` / `data_source`，并按后端字段单位处理 `cost_cents`、`spent_cents` 等金额字段。`recent_requests()` 修复后返回 Collector-backed live rows；`degraded=true` 仅表示后端、Collector 或请求 scope 无法提供 live rows。v1 不提供管理员级 workspace analytics。
 ```
 
 - [ ] **Step 4: Write LangChain docs**

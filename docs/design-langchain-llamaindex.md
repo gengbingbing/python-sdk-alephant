@@ -302,7 +302,7 @@ v1 暂不支持：
 
 这样 SDK 既能帮助用户“发起网关请求”，也能帮助用户“看到这个 key 产生了什么成本和使用情况”。
 
-`usage_summary()`、`budget_status()`、`cost_by_model()` 和 `daily_costs()` 返回后端 `data` payload，隐藏 `{"data": ...}` envelope。`scope()` 有 `data` 时返回 `data`，没有 `data` 时返回后端顶层 JSON。`recent_requests()` 和 `health()` 返回后端顶层 JSON，因为它们当前不是同一 envelope 形状。SDK 不转换 UI 展示单位，调用方需要按响应字段判断 `degraded`、`data_source`，并按后端 schema 处理 `cost_cents`、`spent_cents` 等金额单位。
+`usage_summary()`、`budget_status()`、`cost_by_model()` 和 `daily_costs()` 返回后端 `data` payload，隐藏 `{"data": ...}` envelope。`scope()` 有 `data` 时返回 `data`，没有 `data` 时返回后端顶层 JSON。`recent_requests()` 和 `health()` 返回后端顶层 JSON，因为它们当前不是同一 envelope 形状。`recent_requests()` 修复后返回 Collector-backed live rows；`degraded=true` 仅表示后端、Collector 或请求 scope 无法提供 live rows。SDK 不转换 UI 展示单位，调用方需要按响应字段判断 `degraded`、`data_source`，并按后端 schema 处理 `cost_cents`、`spent_cents` 等金额单位。
 
 ## LangChain 集成
 

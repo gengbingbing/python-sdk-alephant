@@ -44,3 +44,9 @@ from alephantai import AlephantAnalyticsClient
 analytics = AlephantAnalyticsClient(api_key="vk-...")
 print(analytics.usage_summary(period="7d"))
 ```
+
+`usage_summary().total_tokens.input` maps to prompt/input tokens and
+`total_tokens.output` maps to completion/output tokens. `daily_costs()` reports
+daily total tokens. `cost_by_model()` is scoped to the VK's bound agent/member
+when present, and `recent_requests()` returns live rows; `degraded=true` means
+the backend, Collector, or requested scope could not provide live data.
