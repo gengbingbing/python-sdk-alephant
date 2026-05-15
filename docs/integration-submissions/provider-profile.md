@@ -8,12 +8,14 @@ and request-level usage and cost attribution.
 ## Short description
 
 Alephant AI helps teams route LLM traffic through a central gateway while adding
-session headers for analytics. The Python SDK supports direct OpenAI-compatible
-requests plus helper integrations for LangChain and LlamaIndex.
+session headers for analytics. The Python packages support direct
+OpenAI-compatible requests plus helper integrations for LangChain and
+LlamaIndex.
 
 ## Links
 
 - PyPI: https://pypi.org/project/alephantai/
+- LangChain PyPI: https://pypi.org/project/langchain-alephantai/
 - Gateway base URL: https://ai.alephant.io/v1
 - Analytics API base URL: https://alephant.io/api/v1
 - Website: https://alephant.io
@@ -24,7 +26,7 @@ requests plus helper integrations for LangChain and LlamaIndex.
 
 ```bash
 pip install alephantai
-pip install "alephantai[langchain]"
+pip install langchain-alephantai
 pip install "alephantai[llamaindex]"
 ```
 
@@ -32,7 +34,7 @@ pip install "alephantai[llamaindex]"
 
 ```python
 from alephantai import AlephantGatewayContext, create_openai_client
-from alephantai.langchain import create_chat_openai
+from langchain_alephantai import create_chat_openai
 from alephantai.llamaindex import create_openai_embedding, create_openai_llm
 ```
 

@@ -8,14 +8,14 @@ sidebar_label: Alephant AI
 Alephant AI provides an OpenAI-compatible gateway for routing model requests,
 attaching session metadata, and attributing usage and cost analytics.
 
-The `alephantai` Python package includes a LangChain helper that returns a
-standard `ChatOpenAI` instance configured to send requests through Alephant
-Gateway with Alephant session headers.
+The `langchain-alephantai` Python package includes a LangChain helper that
+returns a standard `ChatOpenAI` instance configured to send requests through
+Alephant Gateway with Alephant session headers.
 
 ## Installation
 
 ```bash
-pip install "alephantai[langchain]"
+pip install langchain-alephantai
 ```
 
 ## Credentials
@@ -33,7 +33,7 @@ export ALEPHANT_API_KEY="vk-..."
 import os
 
 from alephantai import AlephantGatewayContext
-from alephantai.langchain import create_chat_openai
+from langchain_alephantai import create_chat_openai
 
 ctx = AlephantGatewayContext(session_name="langchain-chat")
 
@@ -91,8 +91,7 @@ llm = create_chat_openai(
 
 ## API reference
 
-- PyPI: `alephantai`
-- Import: `from alephantai.langchain import create_chat_openai`
+- PyPI: `langchain-alephantai`
+- Import: `from langchain_alephantai import create_chat_openai`
 - Gateway helper: `alephantai.AlephantGatewayContext`
 - Default production base URL: `https://ai.alephant.io/v1`
-

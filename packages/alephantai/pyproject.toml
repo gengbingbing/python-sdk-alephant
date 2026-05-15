@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "alephantai"
+description = "Python SDK for Alephant Gateway sessions, analytics, and framework integrations."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+license-files = ["LICENSE"]
+authors = [{ name = "Alephant AI" }]
+keywords = ["alephant", "llm", "gateway", "langchain", "llamaindex", "cost"]
+dynamic = ["version"]
+dependencies = [
+  "httpx>=0.24,<1",
+  "openai>=1.0,<3",
+]
+
+[project.optional-dependencies]
+langchain = [
+  "langchain-core>=1,<2",
+  "langchain-openai>=1.2,<2",
+]
+llamaindex = [
+  "llama-index-core>=0.14,<0.15",
+  "llama-index-llms-openai>=0.7,<0.8",
+  "llama-index-embeddings-openai>=0.6,<0.7",
+]
+dev = ["pytest>=8", "ruff>=0.6", "build>=1.2", "twine>=5"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/alephantai"]
+
+[tool.hatch.version]
+path = "src/alephantai/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.pytest_cache",
+  "/.ruff_cache",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

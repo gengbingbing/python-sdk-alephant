@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dev dependencies
-        run: python -m pip install -e ".[dev]"
+        run: python -m pip install -e "packages/alephantai[dev]" -e "packages/langchain-alephantai[dev]"
       - name: Run tests
         run: pytest -v
       - name: Run ruff
@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install optional extra
-        run: python -m pip install -e ".[${{ matrix.extra }}]"
+        run: python -m pip install -e "packages/alephantai[${{ matrix.extra }}]"
       - name: Check dependencies
         run: python -m pip check
       - name: Smoke LangChain constructors

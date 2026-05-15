@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "langchain-alephantai"
+description = "LangChain integration package for Alephant AI Gateway."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+license-files = ["LICENSE"]
+authors = [{ name = "Alephant AI" }]
+keywords = ["alephant", "langchain", "llm", "gateway", "cost"]
+dynamic = ["version"]
+dependencies = [
+  "alephantai>=0.1.0",
+  "langchain-core>=1,<2",
+  "langchain-openai>=1.2,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "build>=1.2", "twine>=5"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/langchain_alephantai"]
+
+[tool.hatch.version]
+path = "src/langchain_alephantai/__init__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "../alephantai/src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
